@@ -1237,6 +1237,8 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
   // Global keyboard shortcuts - using refs to avoid closure issues
   const selectedIdsRef = useRef(selectedBlockIds)
   const deleteSelectedBlocksRef = useRef(deleteSelectedBlocks)
+  // Cross-block text-selection handler ref (updated whenever blocks/onChange changes)
+  const crossBlockDeleteRef = useRef<(charToInsert?: string) => boolean>(() => false)
 
   useEffect(() => {
     selectedIdsRef.current = selectedBlockIds
@@ -1253,6 +1255,135 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
   const dragAnchorIdxRef  = useRef<number | null>(null)
 
   useEffect(() => { noteBlocksRef.current = note.blocks }, [note.blocks])
+
+  // ── Cross-block text-selection editing ──────────────────────────────────────
+  // When the browser selection spans multiple [data-block-id] elements, normal
+  // keyboard events can't delete/replace across them because each block is an
+  // independent contenteditable. This ref is kept fresh and called from the
+  // global keydown handler to merge boundaries and optionally insert a char.
+  useEffect(() => {
+    crossBlockDeleteRef.current = function handleCrossBlockTextEdit(charToInsert?: string): boolean {
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return false
+
+      const range = sel.getRangeAt(0)
+
+      // Walk up from a node to find the nearest [data-block-id] container
+      function getBlockEl(node: Node): HTMLElement | null {
+        let n: Node | null = node
+        while (n && n !== document.body) {
+          if (n instanceof HTMLElement && n.hasAttribute('data-block-id')) return n
+          n = n.parentNode
+        }
+        return null
+      }
+
+      const startBlockEl = getBlockEl(range.startContainer)
+      const endBlockEl   = getBlockEl(range.endContainer)
+
+      // Only act on genuine cross-block selections
+      if (!startBlockEl || !endBlockEl || startBlockEl === endBlockEl) return false
+
+      const startBlockId = startBlockEl.getAttribute('data-block-id')!
+      const endBlockId   = endBlockEl.getAttribute('data-block-id')!
+
+      const blocks  = noteBlocksRef.current
+      const startIdx = blocks.findIndex(b => b.id === startBlockId)
+      const endIdx   = blocks.findIndex(b => b.id === endBlockId)
+      if (startIdx === -1 || endIdx === -1) return false
+
+      // Normalise so fromIdx < toIdx (handle backward selections)
+      const forward = startIdx <= endIdx
+      const [fromIdx, toIdx]         = forward ? [startIdx, endIdx]             : [endIdx, startIdx]
+      const [fromEl,  toEl]          = forward ? [startBlockEl, endBlockEl]     : [endBlockEl, startBlockEl]
+      const [fromNode, fromOff]      = forward
+        ? [range.startContainer, range.startOffset]
+        : [range.endContainer,   range.endOffset]
+      const [toNode,  toOff]         = forward
+        ? [range.endContainer,   range.endOffset]
+        : [range.startContainer, range.startOffset]
+
+      // Get contenteditable within a block (fall back to block el itself)
+      function getEditable(el: HTMLElement): HTMLElement {
+        return (el.querySelector('[contenteditable]') as HTMLElement) ?? el
+      }
+
+      const fromEditable = getEditable(fromEl)
+      const toEditable   = getEditable(toEl)
+
+      // Measure plain-text offset from start of each editable to the range endpoint
+      let startTextOffset = 0
+      let endTextOffset   = (toEditable.textContent || '').length
+
+      try {
+        const r = document.createRange()
+        r.setStart(fromEditable, 0)
+        r.setEnd(fromNode, fromOff)
+        startTextOffset = r.toString().length
+      } catch { startTextOffset = 0 }
+
+      try {
+        const r = document.createRange()
+        r.setStart(toEditable, 0)
+        r.setEnd(toNode, toOff)
+        endTextOffset = r.toString().length
+      } catch { endTextOffset = (toEditable.textContent || '').length }
+
+      const fromBlock = blocks[fromIdx]
+      const toBlock   = blocks[toIdx]
+
+      // Merge: keep text before cursor in start block + optional char + text after cursor in end block
+      const mergedContent = fromBlock.content.slice(0, startTextOffset)
+                          + (charToInsert ?? '')
+                          + toBlock.content.slice(endTextOffset)
+      const cursorPos = startTextOffset + (charToInsert ? charToInsert.length : 0)
+
+      // Build new blocks array: replace fromBlock with merged, drop everything from fromIdx+1..toIdx
+      const newBlocks: Block[] = []
+      for (let i = 0; i < blocks.length; i++) {
+        if (i === fromIdx)                     newBlocks.push({ ...fromBlock, content: mergedContent })
+        else if (i > fromIdx && i <= toIdx)    { /* deleted */ }
+        else                                   newBlocks.push(blocks[i])
+      }
+
+      // Clear the browser selection before updating React state
+      sel.removeAllRanges()
+
+      onChange({ blocks: newBlocks })
+      setFocusedBlockId(fromBlock.id)
+
+      // Place cursor at the merge point after React re-renders
+      setTimeout(() => {
+        const el = document.querySelector(
+          `[data-block-id="${fromBlock.id}"] [contenteditable]`
+        ) as HTMLElement | null
+        if (!el) return
+        el.focus()
+        try {
+          const textNode = el.firstChild
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            const r   = document.createRange()
+            const pos = Math.min(cursorPos, textNode.textContent?.length ?? 0)
+            r.setStart(textNode, pos)
+            r.collapse(true)
+            const s = window.getSelection()
+            s?.removeAllRanges()
+            s?.addRange(r)
+          } else {
+            // Empty block — place at start
+            const r = document.createRange()
+            r.setStart(el, 0)
+            r.collapse(true)
+            const s = window.getSelection()
+            s?.removeAllRanges()
+            s?.addRange(r)
+          }
+        } catch {}
+      }, 0)
+
+      return true
+    }
+  }, [note.blocks, onChange])
 
   // Called by BlockItem's grip/margin onMouseDown
   function startDragSelect(blockId: string, blockIdx: number) {
@@ -1287,6 +1418,26 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     function handleKeyDown(e: KeyboardEvent) {
       const activeEl = document.activeElement as HTMLElement
       const isContentEditable = !!(activeEl?.contentEditable === 'true' || activeEl?.closest('[contenteditable]'))
+
+      // ── Cross-block text-selection: Backspace / Delete ──────────────────────
+      // Must run before the block-selection handler so text-editing wins when
+      // the user has dragged a native text selection across multiple blocks.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey) {
+        if (crossBlockDeleteRef.current()) {
+          e.preventDefault()
+          return
+        }
+      }
+
+      // ── Cross-block text-selection: printable character replaces selection ──
+      // A single printable key (no modifier) while a cross-block selection is
+      // active should delete the selection and insert the typed character.
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (crossBlockDeleteRef.current(e.key)) {
+          e.preventDefault()
+          return
+        }
+      }
 
       // Delete / Backspace when blocks are selected — delete selected blocks
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.size > 0) {
