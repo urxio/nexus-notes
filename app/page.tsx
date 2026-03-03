@@ -1329,6 +1329,20 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [])
 
+  // Clicking outside any block clears the selection
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      if (selectedIdsRef.current.size === 0) return
+      const target = e.target as HTMLElement
+      // Keep selection when clicking on a block or on selection-control UI (toolbar buttons)
+      if (target.closest('[data-block-id]') || target.closest('[data-keep-selection]')) return
+      setSelectedBlockIds(new Set())
+      setLastSelectedIdx(null)
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [])
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header bar */}
@@ -1347,7 +1361,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-keep-selection>
           {selectedBlockIds.size > 0 && (
             <>
               <Button
@@ -1393,16 +1407,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
       </div>
 
       <ScrollArea className="flex-1">
-        <div
-          className="max-w-2xl mx-auto px-8 py-10 pb-24"
-          onClick={(e) => {
-            // Click on the empty editor background (not on any child) clears selection
-            if (e.target === e.currentTarget && selectedBlockIds.size > 0) {
-              setSelectedBlockIds(new Set())
-              setLastSelectedIdx(null)
-            }
-          }}
-        >
+        <div className="max-w-2xl mx-auto px-8 py-10 pb-24">
           {/* Emoji + Title */}
           <div className="mb-8 space-y-3">
             <div className="relative inline-block">
