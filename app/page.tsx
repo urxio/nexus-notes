@@ -11,13 +11,13 @@ import {
   Plus, Search, Hash, Network, FileText, Trash2, Tag, X,
   AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
   Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
-  ChevronRight, BookOpen, MoreHorizontal,
+  ChevronRight, BookOpen, MoreHorizontal, Calendar,
 } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo'
+type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo' | 'date'
 
 interface Block {
   id: string
@@ -53,19 +53,20 @@ const BLOCK_ICONS: Record<BlockType, React.ReactNode> = {
   code: <Code2 className="w-3.5 h-3.5" />,
   divider: <Minus className="w-3.5 h-3.5" />,
   todo: <CheckSquare className="w-3.5 h-3.5" />,
+  date: <Calendar className="w-3.5 h-3.5" />,
 }
 
 const BLOCK_LABELS: Record<BlockType, string> = {
   h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', p: 'Paragraph',
   bullet: 'Bullet List', numbered: 'Numbered List', quote: 'Quote',
-  code: 'Code Block', divider: 'Divider', todo: 'To-do',
+  code: 'Code Block', divider: 'Divider', todo: 'To-do', date: 'Date',
 }
 
 const BLOCK_PLACEHOLDERS: Record<BlockType, string> = {
   h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3',
   p: "Write something, or type '/' for commands…",
   bullet: 'List item', numbered: 'List item',
-  quote: 'Quote…', code: 'Code…', divider: '', todo: 'To-do',
+  quote: 'Quote…', code: 'Code…', divider: '', todo: 'To-do', date: '',
 }
 
 const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] = [
@@ -79,6 +80,7 @@ const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] 
   { type: 'code', label: 'Code Block', shortcut: '```' },
   { type: 'todo', label: 'To-do', shortcut: '[]' },
   { type: 'divider', label: 'Divider', shortcut: '---' },
+  { type: 'date', label: 'Date', shortcut: '' },
 ]
 
 // ─── Seed Data ─────────────────────────────────────────────────────────────────
@@ -162,7 +164,7 @@ function mkBlock(type: BlockType = 'p'): Block {
 function normalizeBlocks(blocks: Block[]): Block[] {
   const result: Block[] = []
   for (const b of blocks) {
-    if (b.type !== 'code' && b.content.includes('\n')) {
+    if (b.type !== 'code' && b.type !== 'date' && b.content.includes('\n')) {
       const lines = b.content.split(/\r?\n/)
       result.push({ ...b, content: lines[0] })
       for (let i = 1; i < lines.length; i++) {
@@ -703,7 +705,8 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
 
   function applyMenuItem(type: BlockType) {
     if (ref.current) ref.current.textContent = ''
-    onUpdate(block.id, { type, content: '' })
+    const content = type === 'date' ? new Date().toISOString().split('T')[0] : ''
+    onUpdate(block.id, { type, content })
     setShowMenu(false)
     setMenuFilter('')
   }
@@ -711,6 +714,36 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
   // Divider
   if (block.type === 'divider') {
     return <hr className="border-border my-3" />
+  }
+
+  // Date block — clickable chip that opens the native date picker
+  if (block.type === 'date') {
+    const dateVal = block.content || new Date().toISOString().split('T')[0]
+    const displayDate = (() => {
+      try {
+        // Append T12:00:00 to avoid timezone-shift issues when parsing date-only strings
+        return new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+        })
+      } catch { return dateVal }
+    })()
+    return (
+      <div className="flex items-center gap-2 py-1.5 group select-none">
+        <Calendar className="w-4 h-4 text-primary/70 flex-shrink-0" />
+        {/* Wrapping <label> makes the whole row open the hidden <input type="date"> */}
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <span className="text-sm font-medium text-primary/80 group-hover:underline decoration-dotted underline-offset-2">
+            {displayDate}
+          </span>
+          <input
+            type="date"
+            value={dateVal}
+            onChange={e => onUpdate(block.id, { content: e.target.value })}
+            className="sr-only"
+          />
+        </label>
+      </div>
+    )
   }
 
   const baseEditable = cn(
