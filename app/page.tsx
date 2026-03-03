@@ -493,7 +493,7 @@ function GraphPanel({ notes, activeNoteId, onSelectNote }: {
 interface BlockItemProps {
   block: Block; index: number; numBlocks: number; isFocused: boolean
   onUpdate: (id: string, patch: Partial<Block>) => void
-  onInsert: (afterId: string, type?: BlockType) => void
+  onInsert: (afterId: string, type?: BlockType, content?: string) => void
   onDelete: (id: string) => void
   onFocus: (id: string) => void
   onPasteLines: (afterId: string, lines: string[]) => void
@@ -515,21 +515,22 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
     }
   }, [block.type]) // only reset on type change, not content
 
-  // Focus imperatively
+  // Focus imperatively (cursor at start — user-click focus is handled by the browser
+  // and skips this block because document.activeElement === ref.current already)
   useEffect(() => {
     if (isFocused && ref.current && document.activeElement !== ref.current) {
       ref.current.focus()
       try {
         const range = document.createRange()
         const sel = window.getSelection()
-        if (ref.current.lastChild) {
-          const node = ref.current.lastChild
-          range.setStart(node, (node as Text).length ?? 0)
-          range.collapse(true)
+        // Place at position 0 (start of block). For empty blocks firstChild is null
+        // and setStart(el, 0) also works correctly.
+        if (ref.current.firstChild) {
+          range.setStart(ref.current.firstChild, 0)
         } else {
           range.setStart(ref.current, 0)
-          range.collapse(true)
         }
+        range.collapse(true)
         sel?.removeAllRanges()
         sel?.addRange(range)
       } catch {}
@@ -655,8 +656,30 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
         onUpdate(block.id, { type: 'p', content: '' })
         return
       }
+
+      // ── Split content at cursor position ──────────────────────────────────
+      const el = e.currentTarget
+      let cursorPos = text.length
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0) {
+        try {
+          const range = sel.getRangeAt(0)
+          const pre = document.createRange()
+          pre.setStart(el, 0)
+          pre.setEnd(range.startContainer, range.startOffset)
+          cursorPos = pre.toString().length
+        } catch {}
+      }
+      const before = text.slice(0, cursorPos)
+      const after  = text.slice(cursorPos)
+
+      // Keep only the text before the cursor in the current block
+      el.textContent = before
+      onUpdate(block.id, { content: before })
+
+      // New block carries the text that was after the cursor
       const nextType: BlockType = block.type === 'bullet' ? 'bullet' : block.type === 'numbered' ? 'numbered' : 'p'
-      onInsert(block.id, nextType)
+      onInsert(block.id, nextType, after)
       return
     }
 
@@ -812,8 +835,8 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     setFocusedBlockId(newBlocks[newBlocks.length - 1].id)
   }
 
-  function insertBlockAfter(afterId: string, type: BlockType = 'p') {
-    const nb = mkBlock(type)
+  function insertBlockAfter(afterId: string, type: BlockType = 'p', content: string = '') {
+    const nb = { ...mkBlock(type), content }
     const idx = note.blocks.findIndex(b => b.id === afterId)
     const newBlocks = [...note.blocks.slice(0, idx + 1), nb, ...note.blocks.slice(idx + 1)]
     onChange({ blocks: newBlocks })
