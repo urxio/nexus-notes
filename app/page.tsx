@@ -1259,16 +1259,42 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     noteBlocksRef.current = note.blocks
   }, [note.blocks])
 
-  // Previously we converted multi-block text drags into a block-level
-  // selection (Notion-style). This interfered with normal text selection that
-  // spans across two adjacent blocks. Users expect to be able to drag across a
-  // boundary and highlight text without the editor hijacking the selection.
-  //
-  // We now rely on explicit click/shift-click/ctrl-click for block selection and
-  // no longer intercept mouse-up events. The handler is kept as reference but
-  // is *not* wired to any event. It may be removed entirely in the future.
+  // Detects when a mouse-drag text selection spans multiple blocks and converts
+  // it to a block-level selection (similar to Notion). Wired to onMouseUp on the
+  // block list container so it fires as soon as the drag ends.
   function handleCrossBlockSelection() {
-    /* intentionally empty – handler no longer used */
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+
+    const range = sel.getRangeAt(0)
+    const toBlockEl = (node: Node): HTMLElement | null =>
+      (node.nodeType === Node.TEXT_NODE ? node.parentElement : node as Element)
+        ?.closest<HTMLElement>('[data-block-id]') ?? null
+
+    const startEl = toBlockEl(range.startContainer)
+    const endEl   = toBlockEl(range.endContainer)
+    if (!startEl || !endEl) return
+
+    const startId = startEl.dataset.blockId
+    const endId   = endEl.dataset.blockId
+    // Same block — leave browser's native text selection intact
+    if (!startId || !endId || startId === endId) return
+
+    const blocks = noteBlocksRef.current
+    const si = blocks.findIndex(b => b.id === startId)
+    const ei = blocks.findIndex(b => b.id === endId)
+    if (si === -1 || ei === -1) return
+
+    const [from, to] = si <= ei ? [si, ei] : [ei, si]
+    const ids = new Set<string>()
+    for (let i = from; i <= to; i++) ids.add(blocks[i].id)
+
+    // Replace the native text selection with a block-level highlight
+    sel.removeAllRanges()
+    ;(document.activeElement as HTMLElement)?.blur()
+    setSelectedBlockIds(ids)
+    setLastSelectedIdx(to)
+    setFocusedBlockId(null)
   }
 
   useEffect(() => {
@@ -1419,7 +1445,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
           </div>
 
           {/* Blocks */}
-          <div className="space-y-0">  
+          <div className="space-y-0" onMouseUp={handleCrossBlockSelection}>
             {note.blocks.map((block, index) => (
               <BlockItem
                 key={block.id}
