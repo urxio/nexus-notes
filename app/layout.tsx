@@ -7,7 +7,7 @@ import { Toaster } from "sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Nexus Notes",
+  title: "Locus Notes",
   description: "A block editor with an Obsidian-style tag network graph",
 }
 
@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           attribute="class"
           defaultTheme="light"
           enableSystem={false}
-          storageKey="nexus-notes-theme"
+          storageKey="locus-notes-theme"
         >
           {children}
           <Toaster position="bottom-center" richColors />

@@ -87,9 +87,9 @@ const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] 
 
 const SEED_NOTES: Note[] = [
   {
-    id: 'seed-1', title: 'Welcome to Nexus', emoji: '✨', color: '#6366f1',
+    id: 'seed-1', title: 'Welcome to Locus', emoji: '✨', color: '#6366f1',
     blocks: [
-      { id: 'b1', type: 'h1', content: 'Welcome to Nexus Notes' },
+      { id: 'b1', type: 'h1', content: 'Welcome to Locus Notes' },
       { id: 'b2', type: 'p', content: 'A block editor with an Obsidian-style tag network. Tags connect notes and appear as edges in the graph view →' },
       { id: 'b3', type: 'bullet', content: 'Type  /  to insert blocks' },
       { id: 'b4', type: 'bullet', content: 'Use  #  shortcuts: # H1, ## H2, - bullets, > quote' },
@@ -126,7 +126,7 @@ const SEED_NOTES: Note[] = [
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'nexus-notes-v1'
+const STORAGE_KEY = 'locus-notes-v1'
 
 function loadNotes(): Note[] {
   if (typeof window === 'undefined') return SEED_NOTES
@@ -1785,7 +1785,7 @@ function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, active
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-primary" />
-            <span className="font-semibold text-sm">Nexus Notes</span>
+            <span className="font-semibold text-sm">Locus Notes</span>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1873,7 +1873,7 @@ function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, active
 
       {/* Footer */}
       <div className="p-3 border-t">
-        <p className="text-[10px] text-muted-foreground/50 text-center">Nexus Notes</p>
+        <p className="text-[10px] text-muted-foreground/50 text-center">Locus Notes</p>
       </div>
     </div>
   )
