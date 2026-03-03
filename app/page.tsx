@@ -157,6 +157,24 @@ function mkBlock(type: BlockType = 'p'): Block {
   return { id: crypto.randomUUID(), type, content: '' }
 }
 
+// Split any blocks whose content contains \n into multiple separate blocks.
+// Called when loading notes so corrupted blocks (from old paste behaviour) are healed.
+function normalizeBlocks(blocks: Block[]): Block[] {
+  const result: Block[] = []
+  for (const b of blocks) {
+    if (b.type !== 'code' && b.content.includes('\n')) {
+      const lines = b.content.split(/\r?\n/)
+      result.push({ ...b, content: lines[0] })
+      for (let i = 1; i < lines.length; i++) {
+        result.push({ ...mkBlock('p'), content: lines[i] })
+      }
+    } else {
+      result.push(b)
+    }
+  }
+  return result.length > 0 ? result : [mkBlock('p')]
+}
+
 // ─── Graph Physics ────────────────────────────────────────────────────────────
 
 interface GNode {
@@ -478,9 +496,10 @@ interface BlockItemProps {
   onInsert: (afterId: string, type?: BlockType) => void
   onDelete: (id: string) => void
   onFocus: (id: string) => void
+  onPasteLines: (afterId: string, lines: string[]) => void
 }
 
-function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onDelete, onFocus }: BlockItemProps) {
+function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onDelete, onFocus, onPasteLines }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [showMenu, setShowMenu] = useState(false)
   const [menuFilter, setMenuFilter] = useState('')
@@ -552,6 +571,68 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
     }
 
     onUpdate(block.id, { content: text })
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    e.preventDefault()
+    const plain = e.clipboardData.getData('text/plain')
+    if (!plain) return
+
+    const el = e.currentTarget
+    const sel = window.getSelection()
+
+    // Calculate cursor start/end as plain-text offsets
+    let cursorStart = (el.textContent || '').length
+    let cursorEnd = cursorStart
+    if (sel && sel.rangeCount > 0) {
+      try {
+        const range = sel.getRangeAt(0)
+        const pre = document.createRange()
+        pre.setStart(el, 0)
+        pre.setEnd(range.startContainer, range.startOffset)
+        cursorStart = pre.toString().length
+        cursorEnd = range.collapsed ? cursorStart : (() => {
+          const post = document.createRange()
+          post.setStart(el, 0)
+          post.setEnd(range.endContainer, range.endOffset)
+          return post.toString().length
+        })()
+      } catch {}
+    }
+
+    const existing = el.textContent || ''
+    const before = existing.slice(0, cursorStart)
+    const after = existing.slice(cursorEnd)
+    const lines = plain.split(/\r?\n/)
+    const firstLine = before + lines[0]
+
+    if (lines.length === 1) {
+      // Single-line paste: insert inline, keep DOM as plain text node
+      const newContent = firstLine + after
+      el.textContent = newContent
+      // Restore cursor after inserted text
+      try {
+        const textNode = el.firstChild
+        if (textNode) {
+          const range = document.createRange()
+          const pos = Math.min(firstLine.length, textNode.textContent?.length ?? 0)
+          range.setStart(textNode, pos)
+          range.collapse(true)
+          sel?.removeAllRanges()
+          sel?.addRange(range)
+        }
+      } catch {}
+      onUpdate(block.id, { content: newContent })
+    } else {
+      // Multi-line paste: current block gets before + first line
+      // Last line gets remainder of original content appended
+      // Middle lines become their own blocks
+      const lastLine = lines[lines.length - 1] + after
+      const middleLines = lines.slice(1, -1)
+      el.textContent = firstLine
+      onUpdate(block.id, { content: firstLine })
+      onPasteLines(block.id, [...middleLines, lastLine])
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -635,6 +716,7 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
       className={cn(baseEditable, typeClass[block.type])}
       onKeyDown={handleKeyDown}
       onInput={handleInput}
+      onPaste={handlePaste}
       onFocus={() => onFocus(block.id)}
       style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
     />
@@ -669,7 +751,7 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
           <div ref={ref} contentEditable suppressContentEditableWarning
             data-placeholder="To-do"
             className={cn(baseEditable, 'text-base leading-relaxed flex-1', block.checked && 'line-through text-muted-foreground/60')}
-            onKeyDown={handleKeyDown} onInput={handleInput} onFocus={() => onFocus(block.id)}
+            onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
             style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
           />
         </div>
@@ -715,6 +797,19 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     onChange({
       blocks: note.blocks.map(b => b.id === id ? { ...b, ...patch } : b),
     })
+  }
+
+  function insertPastedLines(afterId: string, lines: string[]) {
+    const idx = note.blocks.findIndex(b => b.id === afterId)
+    if (idx === -1) return
+    const newBlocks = lines.map(line => ({ ...mkBlock('p'), content: line }))
+    const updated = [
+      ...note.blocks.slice(0, idx + 1),
+      ...newBlocks,
+      ...note.blocks.slice(idx + 1),
+    ]
+    onChange({ blocks: updated })
+    setFocusedBlockId(newBlocks[newBlocks.length - 1].id)
   }
 
   function insertBlockAfter(afterId: string, type: BlockType = 'p') {
@@ -832,6 +927,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
                 onInsert={insertBlockAfter}
                 onDelete={deleteBlock}
                 onFocus={setFocusedBlockId}
+                onPasteLines={insertPastedLines}
               />
             ))}
           </div>
@@ -1029,7 +1125,7 @@ export default function NotesPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const loaded = loadNotes()
+    const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
     setNotes(loaded)
     if (loaded.length > 0) setActiveId(loaded[0].id)
     setMounted(true)
