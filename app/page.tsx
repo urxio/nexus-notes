@@ -1302,8 +1302,8 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
       const activeEl = document.activeElement as HTMLElement
       const isContentEditable = !!(activeEl?.contentEditable === 'true' || activeEl?.closest('[contenteditable]'))
 
-      // Delete / Backspace (no modifier) when nothing is being typed — delete selected blocks
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !isContentEditable && selectedIdsRef.current.size > 0) {
+      // Delete / Backspace when blocks are selected — delete selected blocks
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIdsRef.current.size > 0) {
         e.preventDefault()
         deleteSelectedBlocksRef.current()
         return
