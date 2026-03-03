@@ -1349,22 +1349,36 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
         </div>
         <div className="flex items-center gap-2">
           {selectedBlockIds.size > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  className="h-8 gap-2"
-                  onClick={() => { 
-                    setFocusedBlockId(null)
-                    deleteSelectedBlocks() 
-                  }}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete {selectedBlockIds.size > 1 ? selectedBlockIds.size + ' blocks' : 'block'}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Press Delete or Cmd+Backspace</TooltipContent>
-            </Tooltip>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSelectedBlockIds(new Set())
+                  setLastSelectedIdx(null)
+                }}
+              >
+                <X className="w-3.5 h-3.5" />
+                Deselect
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    className="h-8 gap-2"
+                    onClick={() => { 
+                      setFocusedBlockId(null)
+                      deleteSelectedBlocks() 
+                    }}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete {selectedBlockIds.size > 1 ? selectedBlockIds.size + ' blocks' : 'block'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Press Delete or Cmd+Backspace</TooltipContent>
+              </Tooltip>
+            </>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1379,7 +1393,16 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="max-w-2xl mx-auto px-8 py-10 pb-24">
+        <div
+          className="max-w-2xl mx-auto px-8 py-10 pb-24"
+          onClick={(e) => {
+            // Click on the empty editor background (not on any child) clears selection
+            if (e.target === e.currentTarget && selectedBlockIds.size > 0) {
+              setSelectedBlockIds(new Set())
+              setLastSelectedIdx(null)
+            }
+          }}
+        >
           {/* Emoji + Title */}
           <div className="mb-8 space-y-3">
             <div className="relative inline-block">
