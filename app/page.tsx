@@ -902,6 +902,7 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
     return (
       <div
         ref={containerRef}
+        data-block-id={block.id}
         className={cn(
           "relative group -mx-7 px-7 py-2 transition-all rounded-sm cursor-pointer",
           isSelected && "bg-primary/10 ring-1 ring-primary/20"
@@ -938,6 +939,7 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
     return (
       <div
         ref={containerRef}
+        data-block-id={block.id}
         className={cn(
           "relative group -mx-7 px-7 py-2 transition-all rounded-sm",
           isSelected && "bg-primary/10 ring-1 ring-primary/20"
@@ -1007,6 +1009,7 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
   return (
     <div
       ref={containerRef}
+      data-block-id={block.id}
       className={cn(
         "relative group -mx-7 px-7 py-1 transition-all rounded-sm",
         isSelected && "bg-primary/10 ring-1 ring-primary/20"
@@ -1250,6 +1253,50 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     deleteSelectedBlocksRef.current = deleteSelectedBlocks
   }, [note.blocks])
 
+  // Ref so the cross-block selection handler always sees the latest blocks list
+  const noteBlocksRef = useRef(note.blocks)
+  useEffect(() => {
+    noteBlocksRef.current = note.blocks
+  }, [note.blocks])
+
+  // Detects when a mouse-drag text selection spans multiple blocks and converts
+  // it to a block-level selection (similar to Notion). Wired to onMouseUp on the
+  // block list container so it fires as soon as the drag ends.
+  function handleCrossBlockSelection() {
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+
+    const range = sel.getRangeAt(0)
+    const toBlockEl = (node: Node): HTMLElement | null =>
+      (node.nodeType === Node.TEXT_NODE ? node.parentElement : node as Element)
+        ?.closest<HTMLElement>('[data-block-id]') ?? null
+
+    const startEl = toBlockEl(range.startContainer)
+    const endEl   = toBlockEl(range.endContainer)
+    if (!startEl || !endEl) return
+
+    const startId = startEl.dataset.blockId
+    const endId   = endEl.dataset.blockId
+    // Same block — leave browser's native text selection intact
+    if (!startId || !endId || startId === endId) return
+
+    const blocks = noteBlocksRef.current
+    const si = blocks.findIndex(b => b.id === startId)
+    const ei = blocks.findIndex(b => b.id === endId)
+    if (si === -1 || ei === -1) return
+
+    const [from, to] = si <= ei ? [si, ei] : [ei, si]
+    const ids = new Set<string>()
+    for (let i = from; i <= to; i++) ids.add(blocks[i].id)
+
+    // Replace the native text selection with a block-level highlight
+    sel.removeAllRanges()
+    ;(document.activeElement as HTMLElement)?.blur()
+    setSelectedBlockIds(ids)
+    setLastSelectedIdx(to)
+    setFocusedBlockId(null)
+  }
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const activeEl = document.activeElement as HTMLElement
@@ -1370,7 +1417,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
           </div>
 
           {/* Blocks */}
-          <div className="space-y-0">
+          <div className="space-y-0" onMouseUp={handleCrossBlockSelection}>
             {note.blocks.map((block, index) => (
               <BlockItem
                 key={block.id}
