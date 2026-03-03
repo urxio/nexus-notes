@@ -1,0 +1,1188 @@
+"use client"
+
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import {
+  Plus, Search, Hash, Network, FileText, Trash2, Tag, X,
+  AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
+  Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
+  ChevronRight, BookOpen, MoreHorizontal,
+} from "lucide-react"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo'
+
+interface Block {
+  id: string
+  type: BlockType
+  content: string
+  checked?: boolean
+}
+
+interface Note {
+  id: string
+  title: string
+  emoji: string
+  color: string
+  blocks: Block[]
+  tags: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const NOTE_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
+const NOTE_EMOJIS = ['📝', '💡', '🎯', '📚', '🔬', '🎨', '💻', '🌱', '⚡', '🔥', '📊', '🧠', '✨', '🚀', '🗒️', '📌']
+
+const BLOCK_ICONS: Record<BlockType, React.ReactNode> = {
+  h1: <Heading1 className="w-3.5 h-3.5" />,
+  h2: <Heading2 className="w-3.5 h-3.5" />,
+  h3: <Heading3 className="w-3.5 h-3.5" />,
+  p: <AlignLeft className="w-3.5 h-3.5" />,
+  bullet: <List className="w-3.5 h-3.5" />,
+  numbered: <ListOrdered className="w-3.5 h-3.5" />,
+  quote: <Quote className="w-3.5 h-3.5" />,
+  code: <Code2 className="w-3.5 h-3.5" />,
+  divider: <Minus className="w-3.5 h-3.5" />,
+  todo: <CheckSquare className="w-3.5 h-3.5" />,
+}
+
+const BLOCK_LABELS: Record<BlockType, string> = {
+  h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', p: 'Paragraph',
+  bullet: 'Bullet List', numbered: 'Numbered List', quote: 'Quote',
+  code: 'Code Block', divider: 'Divider', todo: 'To-do',
+}
+
+const BLOCK_PLACEHOLDERS: Record<BlockType, string> = {
+  h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3',
+  p: "Write something, or type '/' for commands…",
+  bullet: 'List item', numbered: 'List item',
+  quote: 'Quote…', code: 'Code…', divider: '', todo: 'To-do',
+}
+
+const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] = [
+  { type: 'p', label: 'Paragraph', shortcut: '' },
+  { type: 'h1', label: 'Heading 1', shortcut: '#' },
+  { type: 'h2', label: 'Heading 2', shortcut: '##' },
+  { type: 'h3', label: 'Heading 3', shortcut: '###' },
+  { type: 'bullet', label: 'Bullet List', shortcut: '-' },
+  { type: 'numbered', label: 'Numbered List', shortcut: '1.' },
+  { type: 'quote', label: 'Quote', shortcut: '>' },
+  { type: 'code', label: 'Code Block', shortcut: '```' },
+  { type: 'todo', label: 'To-do', shortcut: '[]' },
+  { type: 'divider', label: 'Divider', shortcut: '---' },
+]
+
+// ─── Seed Data ─────────────────────────────────────────────────────────────────
+
+const SEED_NOTES: Note[] = [
+  {
+    id: 'seed-1', title: 'Welcome to Nexus', emoji: '✨', color: '#6366f1',
+    blocks: [
+      { id: 'b1', type: 'h1', content: 'Welcome to Nexus Notes' },
+      { id: 'b2', type: 'p', content: 'A block editor with an Obsidian-style tag network. Tags connect notes and appear as edges in the graph view →' },
+      { id: 'b3', type: 'bullet', content: 'Type  /  to insert blocks' },
+      { id: 'b4', type: 'bullet', content: 'Use  #  shortcuts: # H1, ## H2, - bullets, > quote' },
+      { id: 'b5', type: 'bullet', content: 'Add tags at the bottom to connect notes in the graph' },
+      { id: 'b6', type: 'bullet', content: 'Click any node in the graph to open that note' },
+    ],
+    tags: ['welcome', 'getting-started'],
+    createdAt: Date.now() - 7200000, updatedAt: Date.now(),
+  },
+  {
+    id: 'seed-2', title: 'Ideas Board', emoji: '💡', color: '#f59e0b',
+    blocks: [
+      { id: 'b1', type: 'h2', content: 'Ideas to explore' },
+      { id: 'b2', type: 'todo', content: 'Build something new', checked: false },
+      { id: 'b3', type: 'todo', content: 'Learn a new skill', checked: true },
+      { id: 'b4', type: 'todo', content: 'Ship it', checked: false },
+      { id: 'b5', type: 'p', content: '' },
+    ],
+    tags: ['ideas', 'getting-started'],
+    createdAt: Date.now() - 3600000, updatedAt: Date.now(),
+  },
+  {
+    id: 'seed-3', title: 'Research Notes', emoji: '🔬', color: '#10b981',
+    blocks: [
+      { id: 'b1', type: 'h2', content: 'Research Notes' },
+      { id: 'b2', type: 'quote', content: 'The more I learn, the more I realize how much I don\'t know. — Socrates' },
+      { id: 'b3', type: 'p', content: 'Add your research findings here...' },
+      { id: 'b4', type: 'code', content: 'const insight = "shared tags create knowledge graphs"' },
+    ],
+    tags: ['research', 'ideas'],
+    createdAt: Date.now() - 1800000, updatedAt: Date.now(),
+  },
+]
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'nexus-notes-v1'
+
+function loadNotes(): Note[] {
+  if (typeof window === 'undefined') return SEED_NOTES
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return SEED_NOTES
+}
+
+function saveNotes(notes: Note[]) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)) } catch {}
+}
+
+function mkNote(): Note {
+  return {
+    id: crypto.randomUUID(),
+    title: 'Untitled',
+    emoji: NOTE_EMOJIS[Math.floor(Math.random() * NOTE_EMOJIS.length)],
+    color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)],
+    blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
+    tags: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+}
+
+function mkBlock(type: BlockType = 'p'): Block {
+  return { id: crypto.randomUUID(), type, content: '' }
+}
+
+// ─── Graph Physics ────────────────────────────────────────────────────────────
+
+interface GNode {
+  id: string; type: 'note' | 'tag'; label: string; color: string
+  emoji?: string; x: number; y: number; vx: number; vy: number; r: number; noteId?: string
+}
+interface GEdge { source: string; target: string }
+
+function buildGraph(notes: Note[], w: number, h: number): { nodes: GNode[]; edges: GEdge[] } {
+  const nodes: GNode[] = []
+  const edges: GEdge[] = []
+  const tagSet = new Set<string>()
+  notes.forEach(n => n.tags.forEach(t => tagSet.add(t)))
+  const allTags = [...tagSet]
+  const cx = w / 2, cy = h / 2
+  notes.forEach((note, i) => {
+    const a = (i / Math.max(notes.length, 1)) * Math.PI * 2
+    const r = Math.min(w, h) * 0.28
+    nodes.push({
+      id: `note:${note.id}`, type: 'note', label: note.title || 'Untitled',
+      color: note.color, emoji: note.emoji,
+      x: cx + Math.cos(a) * r + (Math.random() - 0.5) * 60,
+      y: cy + Math.sin(a) * r + (Math.random() - 0.5) * 60,
+      vx: 0, vy: 0, r: 30, noteId: note.id,
+    })
+  })
+  allTags.forEach((tag, i) => {
+    const a = (i / Math.max(allTags.length, 1)) * Math.PI * 2
+    const r = Math.min(w, h) * 0.1
+    nodes.push({
+      id: `tag:${tag}`, type: 'tag', label: tag, color: '#475569',
+      x: cx + Math.cos(a) * r + (Math.random() - 0.5) * 30,
+      y: cy + Math.sin(a) * r + (Math.random() - 0.5) * 30,
+      vx: 0, vy: 0, r: 18,
+    })
+  })
+  notes.forEach(note => note.tags.forEach(tag =>
+    edges.push({ source: `note:${note.id}`, target: `tag:${tag}` })
+  ))
+  return { nodes, edges }
+}
+
+function tickSim(nodes: GNode[], edges: GEdge[], w: number, h: number, alpha: number) {
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.1
+      const f = Math.min(3800 / (d * d), 60) * alpha
+      const fx = (f * dx) / d, fy = (f * dy) / d
+      nodes[i].vx -= fx; nodes[i].vy -= fy
+      nodes[j].vx += fx; nodes[j].vy += fy
+    }
+  }
+  const map = new Map(nodes.map(n => [n.id, n]))
+  for (const { source, target } of edges) {
+    const s = map.get(source), t = map.get(target)
+    if (!s || !t) continue
+    const dx = t.x - s.x, dy = t.y - s.y
+    const d = Math.sqrt(dx * dx + dy * dy) || 0.1
+    const f = (d - 90) * 0.055 * alpha
+    const fx = (f * dx) / d, fy = (f * dy) / d
+    s.vx += fx; s.vy += fy; t.vx -= fx; t.vy -= fy
+  }
+  for (const n of nodes) {
+    n.vx += (w / 2 - n.x) * 0.004 * alpha
+    n.vy += (h / 2 - n.y) * 0.004 * alpha
+    n.vx *= 0.82; n.vy *= 0.82
+    n.x = Math.max(n.r + 10, Math.min(w - n.r - 10, n.x + n.vx))
+    n.y = Math.max(n.r + 10, Math.min(h - n.r - 10, n.y + n.vy))
+  }
+}
+
+// ─── GraphPanel ───────────────────────────────────────────────────────────────
+
+function GraphPanel({ notes, activeNoteId, onSelectNote }: {
+  notes: Note[]; activeNoteId: string | null; onSelectNote: (id: string) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 340, h: 500 })
+  const nodesRef = useRef<GNode[]>([])
+  const edgesRef = useRef<GEdge[]>([])
+  const [, forceRender] = useState(0)
+  const rafRef = useRef<number>()
+  const tickCountRef = useRef(0)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [hovered, setHovered] = useState<string | null>(null)
+  const panRef = useRef({ active: false, sx: 0, sy: 0, spx: 0, spy: 0 })
+  const dragRef = useRef<{ id: string; ox: number; oy: number } | null>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const { width, height } = e.contentRect
+        if (width > 0 && height > 0) setSize({ w: width, h: height })
+      }
+    })
+    ro.observe(el)
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0) setSize({ w: rect.width, h: rect.height })
+    return () => ro.disconnect()
+  }, [])
+
+  const graphKey = useMemo(
+    () => notes.map(n => `${n.id}:${n.title}:${n.tags.join(',')}`).join('|'),
+    [notes]
+  )
+
+  useEffect(() => {
+    const { nodes, edges } = buildGraph(notes, size.w, size.h)
+    nodesRef.current = nodes
+    edgesRef.current = edges
+    tickCountRef.current = 0
+  }, [graphKey, size])
+
+  useEffect(() => {
+    function animate() {
+      const tc = tickCountRef.current
+      const alpha = tc < 280 ? Math.max(0.05, 1 - tc / 280) : (dragRef.current ? 0.05 : 0)
+      if (alpha > 0) {
+        tickSim(nodesRef.current, edgesRef.current, size.w, size.h, alpha)
+        tickCountRef.current++
+      }
+      forceRender(k => k + 1)
+      rafRef.current = requestAnimationFrame(animate)
+    }
+    rafRef.current = requestAnimationFrame(animate)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [size])
+
+  function toGraph(screenX: number, screenY: number) {
+    const rect = containerRef.current!.getBoundingClientRect()
+    return { x: (screenX - rect.left - pan.x) / zoom, y: (screenY - rect.top - pan.y) / zoom }
+  }
+
+  function nodeAt(sx: number, sy: number): GNode | null {
+    const { x, y } = toGraph(sx, sy)
+    for (const n of [...nodesRef.current].reverse()) {
+      const dx = n.x - x, dy = n.y - y
+      if (Math.sqrt(dx * dx + dy * dy) < n.r + 4) return n
+    }
+    return null
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    const node = nodeAt(e.clientX, e.clientY)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    if (node) {
+      const { x, y } = toGraph(e.clientX, e.clientY)
+      dragRef.current = { id: node.id, ox: x - node.x, oy: y - node.y }
+    } else {
+      panRef.current = { active: true, sx: e.clientX, sy: e.clientY, spx: pan.x, spy: pan.y }
+    }
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current
+    if (drag) {
+      const { x, y } = toGraph(e.clientX, e.clientY)
+      const node = nodesRef.current.find(n => n.id === drag.id)
+      if (node) { node.x = x - drag.ox; node.y = y - drag.oy; node.vx = 0; node.vy = 0 }
+    } else if (panRef.current.active) {
+      setPan({ x: panRef.current.spx + e.clientX - panRef.current.sx, y: panRef.current.spy + e.clientY - panRef.current.sy })
+    } else {
+      setHovered(nodeAt(e.clientX, e.clientY)?.id || null)
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    const drag = dragRef.current
+    if (drag) {
+      const node = nodesRef.current.find(n => n.id === drag.id)
+      const { x, y } = toGraph(e.clientX, e.clientY)
+      const moved = node ? Math.abs((x - drag.ox) - node.x) + Math.abs((y - drag.oy) - node.y) : 999
+      if (moved < 8 && node?.type === 'note' && node.noteId) onSelectNote(node.noteId)
+      dragRef.current = null
+    }
+    panRef.current.active = false
+  }
+
+  function handleWheel(e: React.WheelEvent) {
+    e.preventDefault()
+    setZoom(z => Math.max(0.25, Math.min(4, z * (e.deltaY > 0 ? 0.9 : 1.1))))
+  }
+
+  const nodes = nodesRef.current
+  const edges = edgesRef.current
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-slate-950 overflow-hidden select-none"
+      style={{ cursor: hovered ? 'pointer' : 'grab' }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => { setHovered(null); panRef.current.active = false }}
+      onWheel={handleWheel}
+    >
+      <svg width="100%" height="100%">
+        <defs>
+          <radialGradient id="bg-grad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stopColor="#0f172a" />
+            <stop offset="100%" stopColor="#020617" />
+          </radialGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#bg-grad)" />
+        <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+          {/* Edges */}
+          {edges.map((edge, i) => {
+            const s = nodeMap.get(edge.source), t = nodeMap.get(edge.target)
+            if (!s || !t) return null
+            const activeEdge = (s.noteId === activeNoteId || t.noteId === activeNoteId)
+            const hovEdge = (s.id === hovered || t.id === hovered)
+            return (
+              <line key={i} x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                stroke={activeEdge ? '#818cf8' : hovEdge ? '#64748b' : '#1e293b'}
+                strokeWidth={activeEdge ? 2 : 1}
+                strokeOpacity={activeEdge ? 0.9 : hovEdge ? 0.7 : 0.6}
+              />
+            )
+          })}
+          {/* Tag nodes */}
+          {nodes.filter(n => n.type === 'tag').map(node => {
+            const isHov = node.id === hovered
+            const connectedNotes = edges
+              .filter(e => e.target === node.id || e.source === node.id)
+              .map(e => e.source === node.id ? e.target : e.source)
+            const isActive = connectedNotes.some(nid => {
+              const n = nodeMap.get(nid)
+              return n?.noteId === activeNoteId
+            })
+            return (
+              <g key={node.id} transform={`translate(${node.x},${node.y})`} style={{ transition: 'none' }}>
+                <circle r={node.r * (isHov ? 1.2 : 1)} fill="#0f172a"
+                  stroke={isActive ? '#6366f1' : isHov ? '#475569' : '#1e293b'}
+                  strokeWidth={isActive ? 2 : isHov ? 1.5 : 1}
+                />
+                <text textAnchor="middle" dominantBaseline="central" fontSize={8}
+                  fill={isActive ? '#a5b4fc' : '#64748b'}
+                  style={{ pointerEvents: 'none', fontFamily: 'monospace', userSelect: 'none' }}
+                >
+                  #{node.label.length > 9 ? node.label.slice(0, 9) + '…' : node.label}
+                </text>
+              </g>
+            )
+          })}
+          {/* Note nodes */}
+          {nodes.filter(n => n.type === 'note').map(node => {
+            const isActive = node.noteId === activeNoteId
+            const isHov = node.id === hovered
+            const scale = isHov ? 1.12 : 1
+            return (
+              <g key={node.id} transform={`translate(${node.x},${node.y})`}>
+                {isActive && (
+                  <circle r={node.r * scale + 8} fill={node.color} fillOpacity={0.15} />
+                )}
+                <circle r={node.r * scale} fill={node.color}
+                  fillOpacity={isActive ? 1 : 0.8}
+                  stroke={isActive ? '#fff' : isHov ? node.color : 'transparent'}
+                  strokeWidth={isActive ? 2.5 : 1.5}
+                />
+                <text textAnchor="middle" y={-3} fontSize={15}
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                >
+                  {node.emoji}
+                </text>
+                <text textAnchor="middle" y={node.r + 15} fontSize={9.5} fill="#e2e8f0"
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                >
+                  {node.label.length > 13 ? node.label.slice(0, 13) + '…' : node.label}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      </svg>
+      {/* Legend */}
+      <div className="absolute bottom-3 left-3 flex items-center gap-3 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-indigo-500 inline-block" /> Note
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block border border-slate-600" /> Tag
+        </span>
+      </div>
+      {/* Zoom controls */}
+      <div className="absolute top-3 right-3 flex flex-col gap-1">
+        {[
+          { label: '+', action: () => setZoom(z => Math.min(4, z * 1.25)) },
+          { label: '−', action: () => setZoom(z => Math.max(0.25, z * 0.8)) },
+          { label: '⌂', action: () => { setPan({ x: 0, y: 0 }); setZoom(1) } },
+        ].map(({ label, action }) => (
+          <button key={label}
+            className="w-7 h-7 rounded bg-slate-800/80 text-slate-400 text-sm flex items-center justify-center hover:bg-slate-700 hover:text-white transition-colors"
+            onClick={e => { e.stopPropagation(); action() }}
+          >{label}</button>
+        ))}
+      </div>
+      <div className="absolute top-3 left-3 text-[10px] text-slate-600 font-mono tracking-wider">GRAPH VIEW</div>
+      {nodes.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 text-xs gap-2">
+          <Network className="w-8 h-8 opacity-30" />
+          <span>Add tags to see connections</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── BlockItem ────────────────────────────────────────────────────────────────
+
+interface BlockItemProps {
+  block: Block; index: number; numBlocks: number; isFocused: boolean
+  onUpdate: (id: string, patch: Partial<Block>) => void
+  onInsert: (afterId: string, type?: BlockType) => void
+  onDelete: (id: string) => void
+  onFocus: (id: string) => void
+}
+
+function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onDelete, onFocus }: BlockItemProps) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuFilter, setMenuFilter] = useState('')
+  const [menuIdx, setMenuIdx] = useState(0)
+  const prevContentRef = useRef(block.content)
+
+  // Set content imperatively on mount / type change (avoid cursor jump)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (document.activeElement !== el) {
+      el.textContent = block.content
+    }
+  }, [block.type]) // only reset on type change, not content
+
+  // Focus imperatively
+  useEffect(() => {
+    if (isFocused && ref.current && document.activeElement !== ref.current) {
+      ref.current.focus()
+      try {
+        const range = document.createRange()
+        const sel = window.getSelection()
+        if (ref.current.lastChild) {
+          const node = ref.current.lastChild
+          range.setStart(node, (node as Text).length ?? 0)
+          range.collapse(true)
+        } else {
+          range.setStart(ref.current, 0)
+          range.collapse(true)
+        }
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      } catch {}
+    }
+  }, [isFocused])
+
+  const filteredMenu = SLASH_MENU_ITEMS.filter(item =>
+    item.label.toLowerCase().includes(menuFilter.toLowerCase()) ||
+    item.type.includes(menuFilter.toLowerCase())
+  )
+
+  function handleInput(e: React.FormEvent<HTMLDivElement>) {
+    const text = e.currentTarget.textContent || ''
+    prevContentRef.current = text
+
+    // Markdown shortcuts (auto-convert on space/special char)
+    const shortcuts: [string | RegExp, BlockType][] = [
+      ['# ', 'h1'], ['## ', 'h2'], ['### ', 'h3'],
+      ['- ', 'bullet'], ['* ', 'bullet'],
+      [/^1\. $/, 'numbered'], ['> ', 'quote'],
+      ['```', 'code'], ['---', 'divider'], ['[]', 'todo'], ['[ ]', 'todo'],
+    ]
+    for (const [pat, newType] of shortcuts) {
+      const match = typeof pat === 'string' ? text === pat : pat.test(text)
+      if (match) {
+        if (ref.current) ref.current.textContent = ''
+        onUpdate(block.id, { type: newType, content: '' })
+        return
+      }
+    }
+
+    // Slash menu
+    if (text.startsWith('/')) {
+      setMenuFilter(text.slice(1))
+      setMenuIdx(0)
+      setShowMenu(true)
+    } else {
+      setShowMenu(false)
+    }
+
+    onUpdate(block.id, { content: text })
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const text = e.currentTarget.textContent || ''
+
+    if (showMenu) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMenuIdx(i => Math.min(i + 1, filteredMenu.length - 1)); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMenuIdx(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' && filteredMenu[menuIdx]) {
+        e.preventDefault()
+        applyMenuItem(filteredMenu[menuIdx].type)
+        return
+      }
+      if (e.key === 'Escape') { setShowMenu(false); return }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if ((block.type === 'bullet' || block.type === 'numbered') && !text) {
+        onUpdate(block.id, { type: 'p', content: '' })
+        return
+      }
+      const nextType: BlockType = block.type === 'bullet' ? 'bullet' : block.type === 'numbered' ? 'numbered' : 'p'
+      onInsert(block.id, nextType)
+      return
+    }
+
+    if (e.key === 'Backspace') {
+      if (!text) {
+        e.preventDefault()
+        if (block.type !== 'p') {
+          onUpdate(block.id, { type: 'p', content: '' })
+          return
+        }
+        if (numBlocks > 1) onDelete(block.id)
+        return
+      }
+    }
+
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      // indent bullet → sub-bullet (simple: just continue as bullet)
+    }
+  }
+
+  function applyMenuItem(type: BlockType) {
+    if (ref.current) ref.current.textContent = ''
+    onUpdate(block.id, { type, content: '' })
+    setShowMenu(false)
+    setMenuFilter('')
+  }
+
+  // Divider
+  if (block.type === 'divider') {
+    return <hr className="border-border my-3" />
+  }
+
+  const baseEditable = cn(
+    "outline-none min-h-[1.4em] break-words",
+    "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40",
+  )
+  const typeClass: Record<BlockType, string> = {
+    h1: 'text-3xl font-bold tracking-tight',
+    h2: 'text-2xl font-semibold',
+    h3: 'text-xl font-semibold',
+    p: 'text-base leading-relaxed',
+    bullet: 'text-base leading-relaxed',
+    numbered: 'text-base leading-relaxed',
+    quote: 'text-base leading-relaxed italic border-l-4 border-primary/50 pl-4 text-muted-foreground',
+    code: 'text-sm font-mono bg-muted rounded-md px-3 py-2',
+    divider: '',
+    todo: 'text-base leading-relaxed',
+  }
+
+  const editableEl = (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={BLOCK_PLACEHOLDERS[block.type]}
+      className={cn(baseEditable, typeClass[block.type])}
+      onKeyDown={handleKeyDown}
+      onInput={handleInput}
+      onFocus={() => onFocus(block.id)}
+      style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+    />
+  )
+
+  return (
+    <div className="relative group">
+      {/* Block type label on hover */}
+      <div className="absolute -left-7 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+        <div className="text-muted-foreground/30 hover:text-muted-foreground cursor-pointer"
+          title={BLOCK_LABELS[block.type]}>
+          {BLOCK_ICONS[block.type]}
+        </div>
+      </div>
+
+      {block.type === 'bullet' ? (
+        <div className="flex items-start gap-2.5">
+          <span className="mt-1.5 text-muted-foreground/60 text-sm leading-none select-none">•</span>
+          {editableEl}
+        </div>
+      ) : block.type === 'numbered' ? (
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 text-muted-foreground/60 text-sm tabular-nums select-none min-w-[1.2em]">{index + 1}.</span>
+          {editableEl}
+        </div>
+      ) : block.type === 'todo' ? (
+        <div className="flex items-start gap-2.5">
+          <input type="checkbox" checked={block.checked ?? false}
+            onChange={() => onUpdate(block.id, { checked: !block.checked })}
+            className="mt-1 rounded cursor-pointer accent-primary"
+          />
+          <div ref={ref} contentEditable suppressContentEditableWarning
+            data-placeholder="To-do"
+            className={cn(baseEditable, 'text-base leading-relaxed flex-1', block.checked && 'line-through text-muted-foreground/60')}
+            onKeyDown={handleKeyDown} onInput={handleInput} onFocus={() => onFocus(block.id)}
+            style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+          />
+        </div>
+      ) : editableEl}
+
+      {/* Slash command menu */}
+      {showMenu && filteredMenu.length > 0 && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border bg-popover shadow-lg overflow-hidden">
+          <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-medium tracking-wider border-b">BLOCKS</div>
+          <div className="py-1 max-h-52 overflow-y-auto">
+            {filteredMenu.map((item, i) => (
+              <button key={item.type}
+                className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
+                  i === menuIdx && 'bg-accent')}
+                onMouseDown={e => { e.preventDefault(); applyMenuItem(item.type) }}
+              >
+                <span className="text-muted-foreground">{BLOCK_ICONS[item.type]}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.shortcut && (
+                  <span className="text-[10px] font-mono text-muted-foreground/60 bg-muted px-1 rounded">{item.shortcut}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── NoteEditor ───────────────────────────────────────────────────────────────
+
+function NoteEditor({ note, allTags, onChange, onDelete }: {
+  note: Note; allTags: string[]; onChange: (patch: Partial<Note>) => void; onDelete: () => void
+}) {
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
+  const [tagInput, setTagInput] = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const titleRef = useRef<HTMLInputElement>(null)
+
+  function updateBlock(id: string, patch: Partial<Block>) {
+    onChange({
+      blocks: note.blocks.map(b => b.id === id ? { ...b, ...patch } : b),
+    })
+  }
+
+  function insertBlockAfter(afterId: string, type: BlockType = 'p') {
+    const nb = mkBlock(type)
+    const idx = note.blocks.findIndex(b => b.id === afterId)
+    const newBlocks = [...note.blocks.slice(0, idx + 1), nb, ...note.blocks.slice(idx + 1)]
+    onChange({ blocks: newBlocks })
+    setFocusedBlockId(nb.id)
+  }
+
+  function deleteBlock(id: string) {
+    const idx = note.blocks.findIndex(b => b.id === id)
+    const prev = note.blocks[idx - 1]
+    onChange({ blocks: note.blocks.filter(b => b.id !== id) })
+    if (prev) setFocusedBlockId(prev.id)
+  }
+
+  function addTag(tag: string) {
+    const t = tag.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    if (!t || note.tags.includes(t)) return
+    onChange({ tags: [...note.tags, t] })
+    setTagInput('')
+    setTagSuggestions([])
+  }
+
+  function removeTag(tag: string) {
+    onChange({ tags: note.tags.filter(t => t !== tag) })
+  }
+
+  function handleTagInputChange(val: string) {
+    setTagInput(val)
+    if (val.trim()) {
+      const q = val.trim().toLowerCase()
+      setTagSuggestions(allTags.filter(t => t.includes(q) && !note.tags.includes(t)).slice(0, 6))
+    } else {
+      setTagSuggestions([])
+    }
+  }
+
+  function handleTagInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+      e.preventDefault()
+      addTag(tagInput)
+    }
+    if (e.key === 'Backspace' && !tagInput && note.tags.length > 0) {
+      removeTag(note.tags[note.tags.length - 1])
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-background/95 backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Notes</span>
+          <ChevronRight className="w-3 h-3" />
+          <span className="text-foreground font-medium truncate max-w-[200px]">{note.title || 'Untitled'}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={onDelete}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete note</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="max-w-2xl mx-auto px-8 py-10 pb-24">
+          {/* Emoji + Title */}
+          <div className="mb-8 space-y-3">
+            <div className="relative inline-block">
+              <button
+                className="text-5xl hover:bg-muted rounded-lg p-1 transition-colors leading-none"
+                onClick={() => setShowEmojiPicker(p => !p)}
+                title="Change emoji"
+              >
+                {note.emoji}
+              </button>
+              {showEmojiPicker && (
+                <div className="absolute top-full left-0 z-50 mt-1 p-2 bg-popover border rounded-xl shadow-xl grid grid-cols-6 gap-1">
+                  {NOTE_EMOJIS.map(em => (
+                    <button key={em}
+                      className={cn("text-xl p-1 rounded hover:bg-accent transition-colors", em === note.emoji && 'bg-accent')}
+                      onClick={() => { onChange({ emoji: em }); setShowEmojiPicker(false) }}
+                    >{em}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <input
+              ref={titleRef}
+              value={note.title}
+              onChange={e => onChange({ title: e.target.value })}
+              placeholder="Untitled"
+              className="w-full text-4xl font-bold tracking-tight bg-transparent outline-none placeholder:text-muted-foreground/40 border-none"
+            />
+          </div>
+
+          {/* Blocks */}
+          <div className="space-y-1 pl-7">
+            {note.blocks.map((block, index) => (
+              <BlockItem
+                key={block.id}
+                block={block}
+                index={index}
+                numBlocks={note.blocks.length}
+                isFocused={focusedBlockId === block.id}
+                onUpdate={updateBlock}
+                onInsert={insertBlockAfter}
+                onDelete={deleteBlock}
+                onFocus={setFocusedBlockId}
+              />
+            ))}
+          </div>
+
+          {/* Add block button */}
+          <button
+            className="mt-4 ml-7 flex items-center gap-2 text-sm text-muted-foreground/40 hover:text-muted-foreground transition-colors group"
+            onClick={() => {
+              const nb = mkBlock('p')
+              onChange({ blocks: [...note.blocks, nb] })
+              setFocusedBlockId(nb.id)
+            }}
+          >
+            <Plus className="w-4 h-4 group-hover:text-primary transition-colors" />
+            <span>Add block</span>
+          </button>
+
+          {/* Tags section */}
+          <div className="mt-10 pt-6 border-t">
+            <div className="flex items-center gap-2 mb-3">
+              <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {note.tags.map(tag => (
+                <Badge key={tag} variant="secondary" className="flex items-center gap-1 pr-1 pl-2 text-xs font-normal">
+                  <span style={{ color: note.color }} className="opacity-80">#</span>
+                  {tag}
+                  <button className="ml-1 hover:text-destructive transition-colors rounded-sm" onClick={() => removeTag(tag)}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+              <div className="relative">
+                <input
+                  value={tagInput}
+                  onChange={e => handleTagInputChange(e.target.value)}
+                  onKeyDown={handleTagInputKeyDown}
+                  placeholder="Add tag…"
+                  className="h-6 px-2 text-xs bg-muted/50 rounded border border-transparent focus:border-input outline-none placeholder:text-muted-foreground/40 w-28 focus:w-40 transition-all"
+                />
+                {tagSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg overflow-hidden min-w-[140px]">
+                    {tagSuggestions.map(t => (
+                      <button key={t}
+                        className="w-full px-3 py-1.5 text-xs text-left hover:bg-accent flex items-center gap-1.5"
+                        onMouseDown={e => { e.preventDefault(); addTag(t) }}
+                      >
+                        <Hash className="w-3 h-3 text-muted-foreground" />{t}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground/40">
+              Press Enter or comma to add · Notes sharing tags connect in the graph
+            </p>
+          </div>
+
+          {/* Meta */}
+          <div className="mt-6 flex gap-4 text-[10px] text-muted-foreground/40">
+            <span>Created {new Date(note.createdAt).toLocaleDateString()}</span>
+            <span>·</span>
+            <span>Updated {new Date(note.updatedAt).toLocaleDateString()}</span>
+          </div>
+        </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter }: {
+  notes: Note[]; activeId: string | null; search: string; onSearch: (q: string) => void
+  onSelect: (id: string) => void; onCreate: () => void; activeTag: string | null; onTagFilter: (tag: string | null) => void
+}) {
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>()
+    notes.forEach(n => n.tags.forEach(t => counts.set(t, (counts.get(t) ?? 0) + 1)))
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t)
+  }, [notes])
+
+  return (
+    <div className="flex flex-col h-full bg-muted/30 border-r">
+      {/* Header */}
+      <div className="p-3 border-b">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" />
+            <span className="font-semibold text-sm">Nexus Notes</span>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCreate}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">New note</TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input value={search} onChange={e => onSearch(e.target.value)}
+            placeholder="Search notes…"
+            className="pl-8 h-8 text-xs bg-background/70" />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        {/* Notes list */}
+        <div className="p-2 space-y-0.5">
+          {notes.map(note => (
+            <button key={note.id}
+              onClick={() => onSelect(note.id)}
+              className={cn(
+                "w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 group transition-colors",
+                note.id === activeId ? 'bg-background shadow-sm' : 'hover:bg-background/60'
+              )}
+            >
+              <span className="text-base leading-none mt-0.5 flex-shrink-0">{note.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{note.title || 'Untitled'}</div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {note.tags.slice(0, 3).map(tag => (
+                    <span key={tag} className="text-[9px] text-muted-foreground font-mono">#{tag}</span>
+                  ))}
+                  {note.tags.length > 3 && <span className="text-[9px] text-muted-foreground/60">+{note.tags.length - 3}</span>}
+                </div>
+              </div>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: note.color }} />
+            </button>
+          ))}
+          {notes.length === 0 && (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              <FileText className="w-6 h-6 mx-auto mb-2 opacity-30" />
+              No notes found
+            </div>
+          )}
+        </div>
+
+        {/* Tag cloud */}
+        {allTags.length > 0 && (
+          <div className="px-3 pt-2 pb-3 border-t mt-2">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Hash className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
+              {activeTag && (
+                <button onClick={() => onTagFilter(null)}
+                  className="ml-auto text-[9px] text-primary hover:underline">clear</button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.map(tag => {
+                const count = notes.filter(n => n.tags.includes(tag)).length
+                return (
+                  <button key={tag}
+                    onClick={() => onTagFilter(activeTag === tag ? null : tag)}
+                    className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full border transition-colors font-mono",
+                      activeTag === tag
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background/60 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+                    )}
+                  >
+                    #{tag} <span className="opacity-60">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="p-3 border-t">
+        <p className="text-[10px] text-muted-foreground/40 text-center">Nexus Notes</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function NotesPage() {
+  const [notes, setNotes] = useState<Note[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [graphOpen, setGraphOpen] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const loaded = loadNotes()
+    setNotes(loaded)
+    if (loaded.length > 0) setActiveId(loaded[0].id)
+    setMounted(true)
+  }, [])
+
+  // Auto-save
+  useEffect(() => {
+    if (mounted) saveNotes(notes)
+  }, [notes, mounted])
+
+  const filteredNotes = useMemo(() => {
+    let result = notes
+    if (activeTag) result = result.filter(n => n.tags.includes(activeTag))
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(n =>
+        n.title.toLowerCase().includes(q) ||
+        n.blocks.some(b => b.content.toLowerCase().includes(q)) ||
+        n.tags.some(t => t.includes(q))
+      )
+    }
+    return result
+  }, [notes, search, activeTag])
+
+  const activeNote = notes.find(n => n.id === activeId) ?? null
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    notes.forEach(n => n.tags.forEach(t => set.add(t)))
+    return [...set]
+  }, [notes])
+
+  function createNote() {
+    const note = mkNote()
+    setNotes(prev => [note, ...prev])
+    setActiveId(note.id)
+    setSearch('')
+    setActiveTag(null)
+  }
+
+  function updateNote(id: string, patch: Partial<Note>) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
+  }
+
+  function deleteNote(id: string) {
+    setNotes(prev => {
+      const rest = prev.filter(n => n.id !== id)
+      if (activeId === id) setActiveId(rest[0]?.id ?? null)
+      return rest
+    })
+  }
+
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <TooltipProvider delayDuration={400}>
+      <div className="flex h-screen overflow-hidden bg-background">
+
+        {/* Sidebar toggle (mobile/collapsed) */}
+        <button
+          className={cn(
+            "fixed left-0 top-1/2 -translate-y-1/2 z-50 w-5 h-12 bg-border/60 hover:bg-muted rounded-r-md flex items-center justify-center transition-all",
+            sidebarOpen ? 'left-[240px]' : 'left-0'
+          )}
+          onClick={() => setSidebarOpen(p => !p)}
+        >
+          {sidebarOpen
+            ? <PanelLeftClose className="w-3 h-3 text-muted-foreground" />
+            : <PanelLeftOpen className="w-3 h-3 text-muted-foreground" />}
+        </button>
+
+        {/* Sidebar */}
+        <div className={cn(
+          "flex-shrink-0 transition-all duration-200 overflow-hidden",
+          sidebarOpen ? 'w-60' : 'w-0'
+        )}>
+          <div className="w-60 h-full">
+            <Sidebar
+              notes={filteredNotes}
+              activeId={activeId}
+              search={search}
+              onSearch={setSearch}
+              onSelect={id => { setActiveId(id); setSearch('') }}
+              onCreate={createNote}
+              activeTag={activeTag}
+              onTagFilter={setActiveTag}
+            />
+          </div>
+        </div>
+
+        {/* Editor */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Top toolbar */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/95 backdrop-blur-sm">
+            <div className="flex items-center gap-1 ml-auto">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant={graphOpen ? 'secondary' : 'ghost'} size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setGraphOpen(p => !p)}>
+                    <Network className="w-3.5 h-3.5" />
+                    Graph
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Toggle tag network graph</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="flex flex-1 overflow-hidden">
+            {/* Note editor */}
+            <div className="flex-1 overflow-hidden">
+              {activeNote ? (
+                <NoteEditor
+                  key={activeNote.id}
+                  note={activeNote}
+                  allTags={allTags}
+                  onChange={patch => updateNote(activeNote.id, patch)}
+                  onDelete={() => deleteNote(activeNote.id)}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                  <BookOpen className="w-12 h-12 opacity-20" />
+                  <div className="text-center">
+                    <p className="font-medium">No note selected</p>
+                    <p className="text-sm mt-1 opacity-60">Select a note from the sidebar or create a new one</p>
+                  </div>
+                  <Button onClick={createNote} size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" /> New note
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Graph panel */}
+            <div className={cn(
+              "flex-shrink-0 border-l transition-all duration-200 overflow-hidden",
+              graphOpen ? 'w-80' : 'w-0'
+            )}>
+              <div className="w-80 h-full">
+                <GraphPanel
+                  notes={notes}
+                  activeNoteId={activeId}
+                  onSelectNote={id => setActiveId(id)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </TooltipProvider>
+  )
+}
