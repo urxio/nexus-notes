@@ -647,7 +647,7 @@ interface BlockItemProps {
   onUpdate: (id: string, patch: Partial<Block>) => void
   onInsert: (afterId: string, type?: BlockType, content?: string) => void
   onDelete: (id: string) => void
-  onDuplicate: (id: string) => void
+  onDuplicate?: (id: string) => void
   onFocus: (id: string) => void
   onSelect: (id: string, evt: React.MouseEvent) => void
   onPasteLines: (afterId: string, lines: string[]) => void
@@ -841,12 +841,11 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
     if (e.key === 'Backspace') {
       if (!text) {
         e.preventDefault()
-        // Allow deletion of all block types when empty
-        if (block.type === 'p') {
-          if (numBlocks > 1) onDelete(block.id)
-        } else {
-          // Convert non-paragraph blocks to paragraph instead of deleting
-          // This matches Notion's behavior
+        if (numBlocks > 1) {
+          // Any empty block can be deleted directly (matches Notion)
+          onDelete(block.id)
+        } else if (block.type !== 'p') {
+          // Last block in note: convert to paragraph so the editor is never empty
           onUpdate(block.id, { type: 'p', content: '' })
         }
         return
@@ -872,9 +871,18 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
   }
 
   function handleContainerClick(e: React.MouseEvent) {
-    // Allow selection with Cmd/Ctrl+Click anywhere, or click on drag handle
     const isDragHandle = (e.target as HTMLElement)?.closest('[data-drag-handle]')
+    // Non-editable blocks: any click selects them.
+    // Delete buttons call e.stopPropagation() so they won't trigger this.
+    if (block.type === 'divider' || block.type === 'date') {
+      e.preventDefault()
+      onSelect(block.id, e)
+      return
+    }
+    // Editable blocks: drag handle or Cmd/Ctrl+Click
     if (isDragHandle || e.metaKey || e.ctrlKey) {
+      const activeEl = document.activeElement as HTMLElement
+      if (activeEl?.contentEditable === 'true') activeEl.blur()
       e.preventDefault()
       e.stopPropagation()
       onSelect(block.id, e)
@@ -883,6 +891,9 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
 
   function handleDragHandleClick(e: React.MouseEvent) {
     e.stopPropagation()
+    // Blur any focused text so Delete/Backspace immediately deletes selected blocks
+    const activeEl = document.activeElement as HTMLElement
+    if (activeEl?.contentEditable === 'true') activeEl.blur()
     onSelect(block.id, e)
   }
 
@@ -892,7 +903,7 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
       <div
         ref={containerRef}
         className={cn(
-          "relative group -mx-7 px-7 py-2 transition-all rounded-sm",
+          "relative group -mx-7 px-7 py-2 transition-all rounded-sm cursor-pointer",
           isSelected && "bg-primary/10 ring-1 ring-primary/20"
         )}
         onClick={handleContainerClick}
@@ -900,9 +911,12 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
         <div className="flex items-center gap-2">
           <div
             data-drag-handle
-            className="w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70"
+            className={cn(
+              "w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70",
+              isSelected ? "opacity-40" : "opacity-0 group-hover:opacity-100"
+            )}
             onClick={handleDragHandleClick}
-            title="Click to select"
+            title="Shift+click for range select"
           >
             <GripVertical className="w-4 h-4" />
           </div>
@@ -933,9 +947,12 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
         <div className="flex items-center gap-2">
           <div
             data-drag-handle
-            className="w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70"
+            className={cn(
+              "w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70",
+              isSelected ? "opacity-40" : "opacity-0 group-hover:opacity-100"
+            )}
             onClick={handleDragHandleClick}
-            title="Click to select"
+            title="Shift+click for range select"
           >
             <GripVertical className="w-4 h-4" />
           </div>
@@ -968,6 +985,7 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
     code: 'text-sm font-mono bg-muted/80 dark:bg-muted rounded-md px-3 py-2 text-foreground/90',
     divider: '',
     todo: 'text-base leading-relaxed',
+    date: '',
   }
 
   const editableEl = (
@@ -995,13 +1013,26 @@ function BlockItem({ block, index, numBlocks, isFocused, isSelected, onUpdate, o
       )}
       onClick={handleContainerClick}
     >
+      {/* Left-margin click zone: click the gutter to select without entering edit mode */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-7 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation()
+          const activeEl = document.activeElement as HTMLElement
+          if (activeEl?.contentEditable === 'true') activeEl.blur()
+          onSelect(block.id, e)
+        }}
+      />
       <div className="flex items-start gap-2">
         {/* Drag handle */}
         <div
           data-drag-handle
-          className="w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70 flex-shrink-0 mt-1"
+          className={cn(
+            "w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70 flex-shrink-0 mt-1",
+            isSelected ? "opacity-40" : "opacity-0 group-hover:opacity-100"
+          )}
           onClick={handleDragHandleClick}
-          title="Drag to move or click to select (Cmd+Click to multi-select)"
+          title="Click to select · Shift+click for range select"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -1221,24 +1252,33 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Only handle shortcuts if no contentEditable is focused
       const activeEl = document.activeElement as HTMLElement
-      const isContentEditable = activeEl?.contentEditable === 'true' || activeEl?.closest('[contenteditable]')
+      const isContentEditable = !!(activeEl?.contentEditable === 'true' || activeEl?.closest('[contenteditable]'))
 
-      // Cmd/Ctrl + Backspace to delete selected blocks (even if editing)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace' && selectedIdsRef.current.size > 0) {
+      // Delete / Backspace (no modifier) when nothing is being typed — delete selected blocks
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isContentEditable && selectedIdsRef.current.size > 0) {
         e.preventDefault()
         deleteSelectedBlocksRef.current()
+        return
       }
 
-      // Escape to clear selection (only if not editing)
-      if (e.key === 'Escape' && selectedIdsRef.current.size > 0 && !isContentEditable) {
+      // Cmd/Ctrl + Backspace or Delete — delete selected blocks even while editing text
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete') && selectedIdsRef.current.size > 0) {
+        e.preventDefault()
+        deleteSelectedBlocksRef.current()
+        return
+      }
+
+      // Escape — clear selection and exit editing
+      if (e.key === 'Escape' && selectedIdsRef.current.size > 0) {
         e.preventDefault()
         setSelectedBlockIds(new Set())
+        setLastSelectedIdx(null)
+        if (isContentEditable) (activeEl as HTMLElement).blur()
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown, true) // Use capture phase
+    window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [])
 
@@ -1276,7 +1316,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
                   Delete {selectedBlockIds.size > 1 ? selectedBlockIds.size + ' blocks' : 'block'}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Or press Cmd+Backspace</TooltipContent>
+              <TooltipContent>Press Delete or Cmd+Backspace</TooltipContent>
             </Tooltip>
           )}
           <Tooltip>
