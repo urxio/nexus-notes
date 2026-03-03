@@ -490,6 +490,57 @@ function GraphPanel({ notes, activeNoteId, onSelectNote }: {
   )
 }
 
+// ─── DateBlock ────────────────────────────────────────────────────────────────
+
+function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: string, patch: Partial<Block>) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const dateVal = block.content || new Date().toISOString().split('T')[0]
+  const displayDate = (() => {
+    try {
+      return new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      })
+    } catch { return dateVal }
+  })()
+
+  function openPicker() {
+    const el = inputRef.current
+    if (!el) return
+    try {
+      // showPicker() is the modern, reliable way — falls back to .click()
+      ;(el as HTMLInputElement & { showPicker?: () => void }).showPicker?.() ?? el.click()
+    } catch {
+      el.click()
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 py-1.5 group select-none">
+      <Calendar className="w-4 h-4 text-primary/70 flex-shrink-0" />
+      <button
+        onClick={openPicker}
+        className="text-sm font-medium text-primary/80 hover:underline decoration-dotted underline-offset-2 cursor-pointer"
+      >
+        {displayDate}
+      </button>
+      <span className="text-xs text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
+        click to edit
+      </span>
+      {/* Real input — positioned off-screen but still interactive so showPicker() works */}
+      <input
+        ref={inputRef}
+        type="date"
+        value={dateVal}
+        onChange={e => onUpdate(block.id, { content: e.target.value })}
+        className="absolute -left-[9999px]"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+    </div>
+  )
+}
+
 // ─── BlockItem ────────────────────────────────────────────────────────────────
 
 interface BlockItemProps {
@@ -716,39 +767,9 @@ function BlockItem({ block, index, numBlocks, isFocused, onUpdate, onInsert, onD
     return <hr className="border-border my-3" />
   }
 
-  // Date block — click the date text to open the native date picker
+  // Date block
   if (block.type === 'date') {
-    const dateVal = block.content || new Date().toISOString().split('T')[0]
-    const displayDate = (() => {
-      try {
-        // T12:00:00 prevents timezone-shift issues with date-only strings
-        return new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US', {
-          weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-        })
-      } catch { return dateVal }
-    })()
-    return (
-      <div className="flex items-center gap-2 py-1.5 group select-none">
-        <Calendar className="w-4 h-4 text-primary/70 flex-shrink-0" />
-        {/* The input is overlaid on the text with opacity-0 so clicking the
-            label text reliably opens the native date picker on all browsers */}
-        <div className="relative inline-flex items-center">
-          <span className="text-sm font-medium text-primary/80 group-hover:underline decoration-dotted underline-offset-2 pointer-events-none">
-            {displayDate}
-          </span>
-          <input
-            type="date"
-            value={dateVal}
-            onChange={e => onUpdate(block.id, { content: e.target.value })}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            title="Click to change date"
-          />
-        </div>
-        <span className="text-xs text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
-          click to edit
-        </span>
-      </div>
-    )
+    return <DateBlock block={block} onUpdate={onUpdate} />
   }
 
   const baseEditable = cn(
