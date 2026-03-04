@@ -1069,8 +1069,8 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
             {editableEl}
           </div>
         ) : block.type === 'numbered' ? (
-          <div className="flex items-start gap-2.5 flex-1">
-            <span className="mt-0.5 text-muted-foreground/60 text-sm tabular-nums select-none min-w-[1.2em]">{listIndex + 1}.</span>
+          <div className="flex items-start gap-1 flex-1">
+            <span className="mt-0.5 text-muted-foreground/60 text-sm tabular-nums select-none w-6 text-right shrink-0">{listIndex + 1}.</span>
             {editableEl}
           </div>
         ) : block.type === 'todo' ? (
@@ -1285,8 +1285,12 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
 
   function insertBlockAfter(afterId: string, type: BlockType = 'p', content: string = '') {
     const nb = { ...mkBlock(type), content }
-    const idx = note.blocks.findIndex(b => b.id === afterId)
-    const newBlocks = [...note.blocks.slice(0, idx + 1), nb, ...note.blocks.slice(idx + 1)]
+    // Use noteBlocksRef (always-fresh) instead of note.blocks so that calls
+    // from setTimeout (e.g. after /date inserts a trailing paragraph) see the
+    // already-updated blocks rather than the stale closure value.
+    const blocks = noteBlocksRef.current
+    const idx = blocks.findIndex(b => b.id === afterId)
+    const newBlocks = [...blocks.slice(0, idx + 1), nb, ...blocks.slice(idx + 1)]
     onChange({ blocks: newBlocks })
     setFocusedBlockId(nb.id)
   }
