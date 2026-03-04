@@ -978,7 +978,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       const middleLines = lines.slice(1, -1)
       el.textContent = firstLine
       onUpdate(block.id, { content: firstLine })
-      onPasteLines(block.id, [...middleLines, lastLine])
+      setTimeout(() => onPasteLines(block.id, [...middleLines, lastLine]), 0)
     }
   }
 
@@ -1072,7 +1072,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
 
       // New block carries the text that was after the cursor
       const nextType: BlockType = block.type === 'bullet' ? 'bullet' : block.type === 'numbered' ? 'numbered' : 'p'
-      onInsert(block.id, nextType, after)
+      setTimeout(() => onInsert(block.id, nextType, after), 0)
       return
     }
 
@@ -1925,13 +1925,14 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   }
 
   function insertPastedLines(afterId: string, lines: string[]) {
-    const idx = note.blocks.findIndex(b => b.id === afterId)
+    const blocks = noteBlocksRef.current
+    const idx = blocks.findIndex(b => b.id === afterId)
     if (idx === -1) return
     const newBlocks = lines.map(line => ({ ...mkBlock('p'), content: line }))
     const updated = [
-      ...note.blocks.slice(0, idx + 1),
+      ...blocks.slice(0, idx + 1),
       ...newBlocks,
-      ...note.blocks.slice(idx + 1),
+      ...blocks.slice(idx + 1),
     ]
     onChange({ blocks: updated })
     setFocusedBlockId(newBlocks[newBlocks.length - 1].id)
