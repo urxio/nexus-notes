@@ -1999,69 +1999,46 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
   // History State
   const historyRef = useRef<{ past: Block[][], future: Block[][] }>({ past: [], future: [] })
-  const blockMapRef = useRef<Record<string, Block>>(
-    note.blocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
-  )
-
-  // Track the note blocks changing for debounced saves
-  const latestBlocksRef = useRef(note.blocks)
-  if (latestBlocksRef.current !== note.blocks) {
-    const isSameMap = note.blocks.every(b => blockMapRef.current[b.id] === b)
-    if (!isSameMap) {
-      // Reassign only when external (non-undo) changes happen
-      latestBlocksRef.current = note.blocks
-      blockMapRef.current = note.blocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
-    }
-  }
 
   const debouncedHistoryUpdateRef = useRef<NodeJS.Timeout | null>(null)
-  const pushHistory = useCallback((newBlocks: Block[]) => {
+
+  const pushHistory = useCallback((currentState: Block[]) => {
     historyRef.current = {
-      past: [...historyRef.current.past, latestBlocksRef.current],
+      past: [...historyRef.current.past, currentState],
       future: []
     }
-    latestBlocksRef.current = newBlocks
-    blockMapRef.current = newBlocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
     if (debouncedHistoryUpdateRef.current) {
       clearTimeout(debouncedHistoryUpdateRef.current)
       debouncedHistoryUpdateRef.current = null
     }
   }, [])
 
-  const debouncedPushHistory = useCallback((newBlocks: Block[]) => {
+  const debouncedPushHistory = useCallback((currentState: Block[]) => {
     if (debouncedHistoryUpdateRef.current) clearTimeout(debouncedHistoryUpdateRef.current)
     debouncedHistoryUpdateRef.current = setTimeout(() => {
-      pushHistory(latestBlocksRef.current)
-      latestBlocksRef.current = newBlocks
-      blockMapRef.current = newBlocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+      pushHistory(currentState)
     }, 800)
   }, [pushHistory])
 
   function undo() {
     const { past, future } = historyRef.current
     if (past.length === 0) return
-    const current = latestBlocksRef.current
     const previous = past[past.length - 1]
     historyRef.current = {
       past: past.slice(0, past.length - 1),
-      future: [current, ...future]
+      future: [note.blocks, ...future]
     }
-    latestBlocksRef.current = previous
-    blockMapRef.current = previous.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
     onChange(note.id, { blocks: previous })
   }
 
   function redo() {
     const { past, future } = historyRef.current
     if (future.length === 0) return
-    const current = latestBlocksRef.current
     const next = future[0]
     historyRef.current = {
-      past: [...past, current],
+      past: [...past, note.blocks],
       future: future.slice(1)
     }
-    latestBlocksRef.current = next
-    blockMapRef.current = next.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
     onChange(note.id, { blocks: next })
   }
   const [tagInput, setTagInput] = useState('')
@@ -2080,9 +2057,9 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   function handleUpdateBlock(id: string, updates: Partial<Block>) {
     const next = note.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
     if ('type' in updates || 'checked' in updates) {
-      pushHistory(next)
+      pushHistory(note.blocks)
     } else {
-      debouncedPushHistory(next)
+      debouncedPushHistory(note.blocks)
     }
     onChange(note.id, { blocks: next })
   }
@@ -2192,7 +2169,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     const idx = note.blocks.findIndex(b => b.id === id)
     const prev = note.blocks[idx - 1]
     const newBlocks = note.blocks.filter(b => b.id !== id)
-    pushHistory(newBlocks)
+    pushHistory(note.blocks)
     onChange(note.id, { blocks: newBlocks })
     if (prev) {
       // Place cursor at end of the previous block, not start
@@ -2257,16 +2234,18 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     } catch { }
   }, [focusedBlockId])
 
+
+
   function deleteSelectedBlocks() {
     if (selectedBlockIds.size === 0) return
     const newBlocks = note.blocks.filter(b => !selectedBlockIds.has(b.id))
     if (newBlocks.length === 0) {
       // Don't allow deleting all blocks, keep one empty paragraph
       const emptyBlock = mkBlock('p')
-      pushHistory([emptyBlock])
+      pushHistory(note.blocks) // Push current state before change
       onChange(note.id, { blocks: [emptyBlock] })
     } else {
-      pushHistory(newBlocks)
+      pushHistory(note.blocks) // Push current state before change
       onChange(note.id, { blocks: newBlocks })
     }
     setSelectedBlockIds(new Set())
@@ -2283,7 +2262,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       ...newBlocks,
       ...blocks.slice(idx + 1),
     ]
-    pushHistory(updated)
+    pushHistory(note.blocks) // Push current state before change
     onChange(note.id, { blocks: updated })
     setFocusedBlockId(newBlocks[newBlocks.length - 1].id)
   }
@@ -2296,7 +2275,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     const blocks = noteBlocksRef.current
     const idx = blocks.findIndex(b => b.id === afterId)
     const newBlocks = [...blocks.slice(0, idx + 1), nb, ...blocks.slice(idx + 1)]
-    pushHistory(newBlocks)
+    pushHistory(note.blocks) // Push current state before change
     onChange(note.id, { blocks: newBlocks })
     setFocusedBlockId(nb.id)
   }
@@ -2454,6 +2433,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       // Clear the browser selection before updating React state
       sel.removeAllRanges()
 
+      pushHistory(note.blocks) // Push current state before change
       onChange(note.id, { blocks: newBlocks })
       setFocusedBlockId(fromBlock.id)
 
@@ -2488,7 +2468,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
       return true
     }
-  }, [note.blocks, onChange, note.id])
+  }, [note.blocks, onChange, note.id, pushHistory])
 
   // Called by BlockItem's grip/margin onMouseDown
   function startDragSelect(blockId: string, blockIdx: number) {
@@ -2721,7 +2701,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
           }
 
           const next = [...note.blocks.slice(0, insertIdx + 1), ...incomingBlocks, ...note.blocks.slice(insertIdx + 1)]
-          pushHistory(next)
+          pushHistory(note.blocks) // Push current state before change
           onChange(note.id, { blocks: next })
           setFocusedBlockId(incomingBlocks[incomingBlocks.length - 1].id)
           toast({ description: `${incomingBlocks.length} blocks pasted.` })
@@ -2869,7 +2849,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
                     const b = note.blocks[idx]
                     const newBlock: Block = { ...b, id: crypto.randomUUID() }
                     const newBlocks = [...note.blocks.slice(0, idx + 1), newBlock, ...note.blocks.slice(idx + 1)]
-                    pushHistory(newBlocks)
+                    pushHistory(note.blocks) // Push current state before change
                     onChange(note.id, { blocks: newBlocks })
                     setFocusedBlockId(newBlock.id)
                   }}
@@ -2903,6 +2883,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
             className="mt-4 ml-7 flex items-center gap-2 text-sm text-muted-foreground/40 hover:text-muted-foreground transition-colors group"
             onClick={() => {
               const nb = mkBlock('p')
+              pushHistory(note.blocks)
               onChange(note.id, { blocks: [...note.blocks, nb] })
               setFocusedBlockId(nb.id)
             }}
