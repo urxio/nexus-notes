@@ -739,34 +739,15 @@ function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: string, p
 
 // ─── Mention renderer ─────────────────────────────────────────────────────────
 
-function renderMentions(text: string, people: Person[], onNavigateTo?: (noteId: string) => void): React.ReactNode {
-  if (!text) return null
+function injectMentionsIntoHtml(html: string, people: Person[]): string {
+  if (!html) return ''
   const names = people.map(p => p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean)
-  if (names.length === 0) return <>{text}</>
-  const mentionRe = new RegExp(`@(${names.join('|')})`, 'gi')
-  const segments: React.ReactNode[] = []
-  let lastIndex = 0; let key = 0; let match: RegExpExecArray | null
-  mentionRe.lastIndex = 0
-  while ((match = mentionRe.exec(text)) !== null) {
-    if (match.index > lastIndex) segments.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>)
-    const capturedName = match[1]
-    segments.push(
-      <span
-        key={key++}
-        className={cn("underline decoration-dotted underline-offset-2 font-medium text-foreground/90", onNavigateTo && "cursor-pointer hover:text-primary transition-colors")}
-        onClick={onNavigateTo ? (e) => {
-          e.stopPropagation()
-          const person = people.find(p => p.name.toLowerCase() === capturedName.toLowerCase())
-          if (person?.noteId) onNavigateTo(person.noteId)
-        } : undefined}
-      >
-        {capturedName}
-      </span>
-    )
-    lastIndex = match.index + match[0].length
-  }
-  if (lastIndex < text.length) segments.push(<span key={key++}>{text.slice(lastIndex)}</span>)
-  return segments.length > 0 ? <>{segments}</> : <>{text}</>
+  if (names.length === 0) return html
+  const mentionRe = new RegExp(`(<[^>]*>)|(@(?:${names.join('|')}))`, 'gi')
+  return html.replace(mentionRe, (match, tag, name) => {
+    if (tag) return match
+    return `<span data-mention="${name.slice(1)}" class="underline decoration-dotted underline-offset-2 font-medium text-foreground/90 cursor-pointer hover:text-primary transition-colors">${match}</span>`
+  })
 }
 
 // ─── Format Toolbar ──────────────────────────────────────────────────────────
@@ -933,7 +914,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
     const el = ref.current
     if (!el) return
     if (document.activeElement !== el) {
-      el.textContent = block.content
+      el.innerHTML = block.content
     }
   }, [block.type]) // only reset on type change, not content
 
@@ -968,7 +949,9 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   )
 
   function handleInput(e: React.FormEvent<HTMLDivElement>) {
-    const text = e.currentTarget.textContent || ''
+    const el = e.currentTarget
+    const text = el.textContent || ''
+    const html = el.innerHTML || ''
     prevContentRef.current = text
 
     // Markdown shortcuts (auto-convert on space/special char)
@@ -1037,7 +1020,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       setShowMenu(false)
     }
 
-    onUpdate(block.id, { content: text })
+    onUpdate(block.id, { content: html })
   }
 
   function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
@@ -1172,27 +1155,38 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
 
       // ── Split content at cursor position ──────────────────────────────────
       const el = e.currentTarget
-      let cursorPos = text.length
+      let beforeHtml = ''
+      let afterHtml = ''
       const sel = window.getSelection()
       if (sel && sel.rangeCount > 0) {
         try {
           const range = sel.getRangeAt(0)
-          const pre = document.createRange()
-          pre.setStart(el, 0)
-          pre.setEnd(range.startContainer, range.startOffset)
-          cursorPos = pre.toString().length
+
+          const preRange = document.createRange()
+          preRange.selectNodeContents(el)
+          preRange.setEnd(range.startContainer, range.startOffset)
+          const tempPre = document.createElement('div')
+          tempPre.appendChild(preRange.cloneContents())
+          beforeHtml = tempPre.innerHTML
+
+          const postRange = document.createRange()
+          postRange.selectNodeContents(el)
+          postRange.setStart(range.endContainer, range.endOffset)
+          const tempPost = document.createElement('div')
+          tempPost.appendChild(postRange.cloneContents())
+          afterHtml = tempPost.innerHTML
         } catch { }
+      } else {
+        beforeHtml = el.innerHTML
       }
-      const before = text.slice(0, cursorPos)
-      const after = text.slice(cursorPos)
 
       // Keep only the text before the cursor in the current block
-      el.textContent = before
-      onUpdate(block.id, { content: before })
+      el.innerHTML = beforeHtml
+      onUpdate(block.id, { content: beforeHtml })
 
       // New block carries the text that was after the cursor
       const nextType: BlockType = block.type === 'bullet' ? 'bullet' : block.type === 'numbered' ? 'numbered' : 'p'
-      setTimeout(() => onInsert(block.id, nextType, after), 0)
+      setTimeout(() => onInsert(block.id, nextType, afterHtml), 0)
       return
     }
 
@@ -1283,12 +1277,14 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   // would reset the caret on every keystroke).
   const bodyCallbackRef = useCallback((el: HTMLDivElement | null) => {
     ; (bodyRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-    if (el) el.textContent = block.expandedContent ?? ''
+    if (el) el.innerHTML = block.expandedContent ?? ''
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [block.open, block.type]) // re-initialise only when open/type changes
 
   function handleBodyInput(e: React.FormEvent<HTMLDivElement>) {
-    const text = e.currentTarget.textContent || ''
+    const el = e.currentTarget
+    const text = el.textContent || ''
+    const html = el.innerHTML || ''
 
     try {
       const cursorEl = e.currentTarget
@@ -1321,7 +1317,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       setShowMenu(false)
     }
 
-    onUpdate(block.id, { expandedContent: text })
+    onUpdate(block.id, { expandedContent: html })
   }
 
   function handleBodyKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -1590,10 +1586,19 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
         <div
           className={cn("outline-none min-h-[1.4em] break-words w-full cursor-text", typeClass[block.type])}
           style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-          onClick={() => onFocus(block.id)}
-        >
-          {block.content ? renderMentions(block.content, people, onNavigateTo) : null}
-        </div>
+          onClick={(e) => {
+            const target = e.target as HTMLElement
+            if (target.matches('[data-mention]')) {
+              e.stopPropagation()
+              const name = target.getAttribute('data-mention')
+              const person = people.find(p => p.name.toLowerCase() === name?.toLowerCase())
+              if (person?.noteId && onNavigateTo) onNavigateTo(person.noteId)
+              return
+            }
+            onFocus(block.id)
+          }}
+          dangerouslySetInnerHTML={{ __html: block.content ? injectMentionsIntoHtml(block.content, people) : '' }}
+        />
       )}
     </div>
   )
@@ -1664,12 +1669,21 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
               )}
               {!isFocused && (
                 <div
-                  className={cn("outline-none min-h-[1.4em] break-words w-full cursor-text", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
-                  style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                  onClick={() => onFocus(block.id)}
-                >
-                  {block.content ? renderMentions(block.content, people, onNavigateTo) : null}
-                </div>
+                  className="outline-none min-h-[1.4em] break-words w-full cursor-text mt-1 text-sm text-foreground/80 dark:text-foreground/70"
+                  style={{ whiteSpace: 'pre-wrap' }}
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement
+                    if (target.matches('[data-mention]')) {
+                      e.stopPropagation()
+                      const name = target.getAttribute('data-mention')
+                      const person = people.find(p => p.name.toLowerCase() === name?.toLowerCase())
+                      if (person?.noteId && onNavigateTo) onNavigateTo(person.noteId)
+                      return
+                    }
+                    onFocus(block.id)
+                  }}
+                  dangerouslySetInnerHTML={{ __html: block.expandedContent ? injectMentionsIntoHtml(block.expandedContent, people) : '' }}
+                />
               )}
             </div>
           </div>
