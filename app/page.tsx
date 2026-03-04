@@ -234,7 +234,7 @@ interface GNode {
 }
 interface GEdge { source: string; target: string }
 
-function buildGraph(notes: Note[], w: number, h: number): { nodes: GNode[]; edges: GEdge[] } {
+function buildGraph(notes: Note[], people: Person[], w: number, h: number): { nodes: GNode[]; edges: GEdge[] } {
   const nodes: GNode[] = []
   const edges: GEdge[] = []
   const tagSet = new Set<string>()
@@ -265,6 +265,24 @@ function buildGraph(notes: Note[], w: number, h: number): { nodes: GNode[]; edge
   notes.forEach(note => note.tags.forEach(tag =>
     edges.push({ source: `note:${note.id}`, target: `tag:${tag}` })
   ))
+  // Mention edges: connect notes that @mention a person to that person's note
+  const personNoteMap = new Map(
+    people.filter(p => p.noteId).map(p => [p.name.toLowerCase(), p.noteId!])
+  )
+  notes.forEach(note => {
+    note.blocks.forEach(block => {
+      const matches = (block.content + ' ' + (block.expandedContent ?? '')).match(/@(\S+)/g)
+      if (!matches) return
+      matches.forEach(m => {
+        const name = m.slice(1).toLowerCase()
+        const personNoteId = personNoteMap.get(name)
+        if (personNoteId && personNoteId !== note.id &&
+            !edges.some(e => e.source === `note:${note.id}` && e.target === `note:${personNoteId}`)) {
+          edges.push({ source: `note:${note.id}`, target: `note:${personNoteId}` })
+        }
+      })
+    })
+  })
   return { nodes, edges }
 }
 
@@ -300,8 +318,8 @@ function tickSim(nodes: GNode[], edges: GEdge[], w: number, h: number, alpha: nu
 
 // ─── GraphPanel ───────────────────────────────────────────────────────────────
 
-function GraphPanel({ notes, activeNoteId, onSelectNote }: {
-  notes: Note[]; activeNoteId: string | null; onSelectNote: (id: string) => void
+function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
+  notes: Note[]; people: Person[]; activeNoteId: string | null; onSelectNote: (id: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 340, h: 500 })
@@ -332,12 +350,12 @@ function GraphPanel({ notes, activeNoteId, onSelectNote }: {
   }, [])
 
   const graphKey = useMemo(
-    () => notes.map(n => `${n.id}:${n.title}:${n.tags.join(',')}`).join('|'),
-    [notes]
+    () => notes.map(n => `${n.id}:${n.title}:${n.tags.join(',')}`).join('|') + '|p:' + people.map(p => p.id).join(','),
+    [notes, people]
   )
 
   useEffect(() => {
-    const { nodes, edges } = buildGraph(notes, size.w, size.h)
+    const { nodes, edges } = buildGraph(notes, people, size.w, size.h)
     nodesRef.current = nodes
     edgesRef.current = edges
     tickCountRef.current = 0
@@ -686,6 +704,25 @@ function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: string, p
       )}
     </div>
   )
+}
+
+// ─── Mention renderer ─────────────────────────────────────────────────────────
+
+function renderMentions(text: string, people: Person[]): React.ReactNode {
+  if (!text) return null
+  const names = people.map(p => p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean)
+  if (names.length === 0) return <>{text}</>
+  const mentionRe = new RegExp(`@(${names.join('|')})`, 'gi')
+  const segments: React.ReactNode[] = []
+  let lastIndex = 0; let key = 0; let match: RegExpExecArray | null
+  mentionRe.lastIndex = 0
+  while ((match = mentionRe.exec(text)) !== null) {
+    if (match.index > lastIndex) segments.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>)
+    segments.push(<span key={key++} className="underline decoration-dotted underline-offset-2 font-medium text-foreground/90">{match[1]}</span>)
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) segments.push(<span key={key++}>{text.slice(lastIndex)}</span>)
+  return segments.length > 0 ? <>{segments}</> : <>{text}</>
 }
 
 // ─── BlockItem ────────────────────────────────────────────────────────────────
@@ -1256,18 +1293,32 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   }
 
   const editableEl = (
-    <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      data-placeholder={BLOCK_PLACEHOLDERS[block.type]}
-      className={cn(baseEditable, typeClass[block.type])}
-      onKeyDown={handleKeyDown}
-      onInput={handleInput}
-      onPaste={handlePaste}
-      onFocus={() => onFocus(block.id)}
-      style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-    />
+    <>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder={BLOCK_PLACEHOLDERS[block.type]}
+        className={cn(baseEditable, typeClass[block.type])}
+        onKeyDown={handleKeyDown}
+        onInput={handleInput}
+        onPaste={handlePaste}
+        onFocus={() => onFocus(block.id)}
+        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
+      />
+      {!isFocused && (
+        <div
+          className={cn(baseEditable, typeClass[block.type], 'cursor-text')}
+          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+          onClick={() => onFocus(block.id)}
+        >
+          {block.content
+            ? renderMentions(block.content, people)
+            : <span className="text-muted-foreground/50">{BLOCK_PLACEHOLDERS[block.type]}</span>
+          }
+        </div>
+      )}
+    </>
   )
 
   // Unified block container with selection support
@@ -1325,8 +1376,17 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
               data-placeholder="To-do"
               className={cn(baseEditable, 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
               onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
-              style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+              style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
             />
+            {!isFocused && (
+              <div
+                className={cn(baseEditable, 'text-base leading-relaxed cursor-text', block.checked && 'line-through text-muted-foreground/60')}
+                style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                onClick={() => onFocus(block.id)}
+              >
+                {block.content ? renderMentions(block.content, people) : <span className="text-muted-foreground/50">To-do</span>}
+              </div>
+            )}
           </div>
         ) : block.type === 'toggle' ? (
           <div className="flex-1">
@@ -2321,10 +2381,10 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people }: {
+function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson }: {
   notes: Note[]; activeId: string | null; search: string; onSearch: (q: string) => void
   onSelect: (id: string) => void; onCreate: () => void; activeTag: string | null; onTagFilter: (tag: string | null) => void
-  people: Person[]
+  people: Person[]; onDeletePerson: (id: string) => void
 }) {
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
@@ -2401,19 +2461,27 @@ function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, active
             </div>
             <div className="space-y-0.5">
               {people.map(person => (
-                <button
-                  key={person.id}
-                  onClick={() => person.noteId && onSelect(person.noteId)}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
-                    person.noteId && activeId === person.noteId
-                      ? 'bg-background shadow-sm ring-1 ring-border'
-                      : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span className="text-sm leading-none">{person.emoji}</span>
-                  <span className="truncate">{person.name}</span>
-                </button>
+                <div key={person.id} className="group/person flex items-center gap-0.5">
+                  <button
+                    onClick={() => person.noteId && onSelect(person.noteId)}
+                    className={cn(
+                      "flex-1 min-w-0 text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
+                      person.noteId && activeId === person.noteId
+                        ? 'bg-background shadow-sm ring-1 ring-border'
+                        : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <span className="text-sm leading-none flex-shrink-0">{person.emoji}</span>
+                    <span className="truncate">{person.name}</span>
+                  </button>
+                  <button
+                    onClick={() => onDeletePerson(person.id)}
+                    className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 rounded hover:text-destructive text-muted-foreground/40 flex-shrink-0"
+                    title="Remove person"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -2489,6 +2557,18 @@ export default function NotesPage() {
   useEffect(() => {
     if (mounted) savePeople(people)
   }, [people, mounted])
+
+  function deletePerson(personId: string) {
+    const person = people.find(p => p.id === personId)
+    if (person?.noteId) {
+      setNotes(prev => {
+        const rest = prev.filter(n => n.id !== person.noteId)
+        if (activeId === person.noteId) setActiveId(rest[0]?.id ?? null)
+        return rest
+      })
+    }
+    setPeople(prev => prev.filter(p => p.id !== personId))
+  }
 
   function createPerson(name: string): Person {
     // Create a dedicated note for this person
@@ -2590,6 +2670,7 @@ export default function NotesPage() {
               activeTag={activeTag}
               onTagFilter={setActiveTag}
               people={people}
+              onDeletePerson={deletePerson}
             />
           </div>
         </div>
@@ -2649,6 +2730,7 @@ export default function NotesPage() {
               <div className="w-80 h-full">
                 <GraphPanel
                   notes={notes}
+                  people={people}
                   activeNoteId={activeId}
                   onSelectNote={id => setActiveId(id)}
                 />
