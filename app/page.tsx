@@ -914,14 +914,14 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   const [newTypeName, setNewTypeName] = useState('')
   const [newTypeEmoji, setNewTypeEmoji] = useState('🔖')
 
-  // Set content imperatively on mount / type change (avoid cursor jump)
+  // Set content imperatively on mount / type change / undo-redo content restore
   useEffect(() => {
     const el = ref.current
     if (!el) return
     if (document.activeElement !== el) {
       el.innerHTML = block.content
     }
-  }, [block.type]) // only reset on type change, not content
+  }, [block.type, block.content])
 
   // Focus imperatively (cursor at start).
   // Depends on both isFocused AND block.type: when a slash-command changes the
@@ -1997,76 +1997,80 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set())
   const [lastSelectedIdx, setLastSelectedIdx] = useState<number | null>(null)
 
-  // History State
-  const historyRef = useRef<{ past: Block[][], future: Block[][] }>({ past: [], future: [] })
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+  // Two stacks: past (undo) and future (redo).
+  // For text edits we debounce 800 ms and capture the pre-typing snapshot so
+  // rapid typing collapses into one history entry.
+  const pastRef   = useRef<Block[][]>([])
+  const futureRef = useRef<Block[][]>([])
+  // Snapshot captured at the start of a typing burst (before any keys land)
+  const preTypingRef   = useRef<Block[] | null>(null)
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const debouncedHistoryUpdateRef = useRef<NodeJS.Timeout | null>(null)
-  const pendingHistoryStateRef = useRef<Block[] | null>(null)
-
-  const pushHistory = useCallback((currentState: Block[]) => {
-    historyRef.current = {
-      past: [...historyRef.current.past, currentState],
-      future: []
+  // Immediate push – used for structural changes (add/delete/type/reorder)
+  function pushHistory(snapshot: Block[]) {
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+      preTypingRef.current   = null
     }
-    if (debouncedHistoryUpdateRef.current) {
-      clearTimeout(debouncedHistoryUpdateRef.current)
-      debouncedHistoryUpdateRef.current = null
-      pendingHistoryStateRef.current = null
-    }
-  }, [])
+    pastRef.current   = [...pastRef.current, snapshot]
+    futureRef.current = []
+  }
 
-  const debouncedPushHistory = useCallback((currentState: Block[]) => {
-    if (!debouncedHistoryUpdateRef.current) {
-      // Capture the state at the beginning of the typing burst
-      pendingHistoryStateRef.current = currentState
+  // Debounced push – used for keystroke-level content edits.
+  // Saves the state from BEFORE the typing burst begins.
+  function debouncedPushHistory(snapshot: Block[]) {
+    if (!typingTimerRef.current) {
+      preTypingRef.current = snapshot   // capture pre-typing state on first key
     } else {
-      clearTimeout(debouncedHistoryUpdateRef.current)
+      clearTimeout(typingTimerRef.current)
     }
-
-    debouncedHistoryUpdateRef.current = setTimeout(() => {
-      if (pendingHistoryStateRef.current) {
-        pushHistory(pendingHistoryStateRef.current)
-        pendingHistoryStateRef.current = null
+    typingTimerRef.current = setTimeout(() => {
+      if (preTypingRef.current) {
+        pastRef.current   = [...pastRef.current, preTypingRef.current]
+        futureRef.current = []
+        preTypingRef.current = null
       }
-      debouncedHistoryUpdateRef.current = null
+      typingTimerRef.current = null
     }, 800)
-  }, [pushHistory])
+  }
 
   function undo() {
-    // If typing debounce is pending, cancel it and restore the pre-typing state directly
-    if (debouncedHistoryUpdateRef.current && pendingHistoryStateRef.current) {
-      clearTimeout(debouncedHistoryUpdateRef.current)
-      debouncedHistoryUpdateRef.current = null
-      const previous = pendingHistoryStateRef.current
-      pendingHistoryStateRef.current = null
-      historyRef.current = {
-        past: historyRef.current.past,
-        future: [note.blocks, ...historyRef.current.future]
-      }
+    // Blur the focused element so the BlockItem useEffect can update innerHTML
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    // Typing in progress — cancel the debounce and jump back to pre-typing state
+    if (typingTimerRef.current && preTypingRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+      const previous       = preTypingRef.current
+      preTypingRef.current = null
+      futureRef.current    = [note.blocks, ...futureRef.current]
       onChange(note.id, { blocks: previous })
       return
     }
-    const { past, future } = historyRef.current
-    if (past.length === 0) return
-    const previous = past[past.length - 1]
-    historyRef.current = {
-      past: past.slice(0, past.length - 1),
-      future: [note.blocks, ...future]
-    }
+    if (pastRef.current.length === 0) return
+    const previous     = pastRef.current[pastRef.current.length - 1]
+    pastRef.current    = pastRef.current.slice(0, -1)
+    futureRef.current  = [note.blocks, ...futureRef.current]
     onChange(note.id, { blocks: previous })
   }
 
   function redo() {
-    const { past, future } = historyRef.current
-    if (future.length === 0) return
-    const next = future[0]
-    historyRef.current = {
-      past: [...past, note.blocks],
-      future: future.slice(1)
+    if (futureRef.current.length === 0) return
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
     }
+    const next        = futureRef.current[0]
+    pastRef.current   = [...pastRef.current, note.blocks]
+    futureRef.current = futureRef.current.slice(1)
     onChange(note.id, { blocks: next })
   }
 
+  // Always-fresh refs so the global keydown handler (registered once) always
+  // calls the latest undo/redo closure with current note.blocks.
   const undoRef = useRef(undo)
   const redoRef = useRef(redo)
   useEffect(() => {
