@@ -1324,8 +1324,6 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
 
   const baseEditable = cn(
     "outline-none min-h-[1.4em] break-words flex-1",
-    // Only show placeholder on the focused block to avoid repeating hints
-    isFocused && "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50",
   )
   const typeClass: Record<BlockType, string> = {
     h1: 'text-3xl font-bold tracking-tight',
@@ -1344,32 +1342,37 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   }
 
   const editableEl = (
-    <>
+    <div className="relative flex-1">
       <div
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        data-placeholder={BLOCK_PLACEHOLDERS[block.type]}
-        className={cn(baseEditable, typeClass[block.type])}
+        className={cn("outline-none min-h-[1.4em] break-words w-full", typeClass[block.type])}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         onPaste={handlePaste}
         onFocus={() => onFocus(block.id)}
         style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
       />
+      {isFocused && !block.content && (
+        <div
+          className={cn("absolute inset-0 pointer-events-none select-none text-muted-foreground/50", typeClass[block.type])}
+          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+          aria-hidden="true"
+        >
+          {BLOCK_PLACEHOLDERS[block.type]}
+        </div>
+      )}
       {!isFocused && (
         <div
-          className={cn(baseEditable, typeClass[block.type], 'cursor-text')}
+          className={cn("outline-none min-h-[1.4em] break-words w-full cursor-text", typeClass[block.type])}
           style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
           onClick={() => onFocus(block.id)}
         >
-          {block.content
-            ? renderMentions(block.content, people, onNavigateTo)
-            : <span className="text-muted-foreground/50">{BLOCK_PLACEHOLDERS[block.type]}</span>
-          }
+          {block.content ? renderMentions(block.content, people, onNavigateTo) : null}
         </div>
       )}
-    </>
+    </div>
   )
 
   // Unified block container with selection support
@@ -1423,21 +1426,29 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
               onChange={() => onUpdate(block.id, { checked: !block.checked })}
               className="rounded cursor-pointer accent-primary flex-shrink-0 w-4 h-4"
             />
-            <div ref={ref} contentEditable suppressContentEditableWarning
-              data-placeholder="To-do"
-              className={cn(baseEditable, 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
-              onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
-              style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
-            />
-            {!isFocused && (
-              <div
-                className={cn(baseEditable, 'text-base leading-relaxed cursor-text', block.checked && 'line-through text-muted-foreground/60')}
-                style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                onClick={() => onFocus(block.id)}
-              >
-                {block.content ? renderMentions(block.content, people, onNavigateTo) : <span className="text-muted-foreground/50">To-do</span>}
-              </div>
-            )}
+            <div className="relative flex-1">
+              <div ref={ref} contentEditable suppressContentEditableWarning
+                className={cn("outline-none min-h-[1.4em] break-words w-full", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
+                onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
+                style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
+              />
+              {isFocused && !block.content && (
+                <div
+                  className="absolute inset-0 pointer-events-none select-none text-base leading-relaxed text-muted-foreground/50"
+                  style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                  aria-hidden="true"
+                >To-do</div>
+              )}
+              {!isFocused && (
+                <div
+                  className={cn("outline-none min-h-[1.4em] break-words w-full cursor-text", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
+                  style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                  onClick={() => onFocus(block.id)}
+                >
+                  {block.content ? renderMentions(block.content, people, onNavigateTo) : null}
+                </div>
+              )}
+            </div>
           </div>
         ) : block.type === 'toggle' ? (
           <div className="flex-1">
@@ -1718,6 +1729,14 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
+
+  // Auto-focus first block when a fresh (single empty block) note is opened
+  useEffect(() => {
+    if (note.blocks.length === 1 && !note.blocks[0].content) {
+      setFocusedBlockId(note.blocks[0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function updateBlock(id: string, patch: Partial<Block>) {
     onChange({
