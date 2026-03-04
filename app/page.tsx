@@ -48,6 +48,16 @@ interface Person {
   name: string
   emoji: string
   noteId?: string
+  typeId?: string
+}
+
+// ─── Object Types ─────────────────────────────────────────────────────────────
+
+interface ObjectType {
+  id: string
+  name: string
+  emoji: string
+  isBuiltin?: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -147,6 +157,27 @@ const SEED_NOTES: Note[] = [
 
 const STORAGE_KEY = 'locus-notes-v1'
 const PEOPLE_STORAGE_KEY = 'locus-people-v1'
+const OBJECT_TYPES_KEY = 'locus-object-types-v1'
+
+const BUILTIN_OBJECT_TYPES: ObjectType[] = [
+  { id: 'person', name: 'Person', emoji: '👤', isBuiltin: true },
+  { id: 'project', name: 'Project', emoji: '📁', isBuiltin: true },
+  { id: 'task', name: 'Task', emoji: '✅', isBuiltin: true },
+]
+
+function loadObjectTypes(): ObjectType[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(OBJECT_TYPES_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+function saveObjectTypes(types: ObjectType[]) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(OBJECT_TYPES_KEY, JSON.stringify(types)) } catch {}
+}
 const PERSON_EMOJIS = ['👤', '👩', '👨', '🧑', '👩‍💻', '👨‍💻', '🧑‍🎨', '👩‍🎨', '🧑‍🏫', '👩‍🏫', '👨‍🏫', '🧑‍⚕️']
 
 function loadPeople(): Person[] {
@@ -708,7 +739,7 @@ function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: string, p
 
 // ─── Mention renderer ─────────────────────────────────────────────────────────
 
-function renderMentions(text: string, people: Person[]): React.ReactNode {
+function renderMentions(text: string, people: Person[], onNavigateTo?: (noteId: string) => void): React.ReactNode {
   if (!text) return null
   const names = people.map(p => p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean)
   if (names.length === 0) return <>{text}</>
@@ -718,7 +749,20 @@ function renderMentions(text: string, people: Person[]): React.ReactNode {
   mentionRe.lastIndex = 0
   while ((match = mentionRe.exec(text)) !== null) {
     if (match.index > lastIndex) segments.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>)
-    segments.push(<span key={key++} className="underline decoration-dotted underline-offset-2 font-medium text-foreground/90">{match[1]}</span>)
+    const capturedName = match[1]
+    segments.push(
+      <span
+        key={key++}
+        className={cn("underline decoration-dotted underline-offset-2 font-medium text-foreground/90", onNavigateTo && "cursor-pointer hover:text-primary transition-colors")}
+        onClick={onNavigateTo ? (e) => {
+          e.stopPropagation()
+          const person = people.find(p => p.name.toLowerCase() === capturedName.toLowerCase())
+          if (person?.noteId) onNavigateTo(person.noteId)
+        } : undefined}
+      >
+        {capturedName}
+      </span>
+    )
     lastIndex = match.index + match[0].length
   }
   if (lastIndex < text.length) segments.push(<span key={key++}>{text.slice(lastIndex)}</span>)
@@ -741,15 +785,17 @@ interface BlockItemProps {
   onMouseEnterBlock: (idx: number) => void
   onPasteLines: (afterId: string, lines: string[]) => void
   people: Person[]
-  onCreatePerson: (name: string) => Person
+  onCreatePerson: (name: string, typeId?: string) => Person
   onFocusPrev: (id: string) => void
   onFocusNext: (id: string) => void
   onReorderDragStart: (id: string) => void
   isBeingDragged: boolean
   showDropIndicatorAbove: boolean
+  onNavigateTo: (noteId: string) => void
+  objectTypes: ObjectType[]
 }
 
-function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson, onFocusPrev, onFocusNext, onReorderDragStart, isBeingDragged, showDropIndicatorAbove }: BlockItemProps) {
+function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson, onFocusPrev, onFocusNext, onReorderDragStart, isBeingDragged, showDropIndicatorAbove, onNavigateTo, objectTypes }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   // Body contenteditable for toggle blocks (mounted only when block.open === true)
@@ -1313,7 +1359,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
           onClick={() => onFocus(block.id)}
         >
           {block.content
-            ? renderMentions(block.content, people)
+            ? renderMentions(block.content, people, onNavigateTo)
             : <span className="text-muted-foreground/50">{BLOCK_PLACEHOLDERS[block.type]}</span>
           }
         </div>
@@ -1384,7 +1430,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
                 style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                 onClick={() => onFocus(block.id)}
               >
-                {block.content ? renderMentions(block.content, people) : <span className="text-muted-foreground/50">To-do</span>}
+                {block.content ? renderMentions(block.content, people, onNavigateTo) : <span className="text-muted-foreground/50">To-do</span>}
               </div>
             )}
           </div>
@@ -1501,47 +1547,65 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
 
       {/* @ Mention menu */}
       {showMentionMenu && (() => {
-        const filteredPeople = people.filter(p =>
+        const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
+        const filteredObjects = people.filter(p =>
           p.name.toLowerCase().includes(mentionFilter.toLowerCase())
         )
-        const canCreate = mentionFilter.trim().length > 0 &&
-          !filteredPeople.some(p => p.name.toLowerCase() === mentionFilter.trim().toLowerCase())
+        const trimmedFilter = mentionFilter.trim()
+        const exactMatch = filteredObjects.some(p => p.name.toLowerCase() === trimmedFilter.toLowerCase())
+        const canCreate = trimmedFilter.length > 0 && !exactMatch
+        const createOptions = canCreate ? allTypes : []
+        const totalItems = filteredObjects.length + createOptions.length
         return (
-          <div className="absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border bg-popover shadow-lg overflow-hidden">
+          <div className="absolute left-12 top-full z-50 mt-1 w-64 rounded-lg border bg-popover shadow-lg overflow-hidden">
             <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-medium tracking-wider border-b flex items-center gap-1.5">
               <User className="w-3 h-3" />
-              PEOPLE
+              OBJECTS
             </div>
-            <div className="py-1 max-h-52 overflow-y-auto">
-              {filteredPeople.length === 0 && !canCreate && (
+            <div className="py-1 max-h-60 overflow-y-auto">
+              {filteredObjects.length === 0 && !canCreate && (
                 <div className="px-3 py-3 text-sm text-muted-foreground text-center">
                   <User className="w-4 h-4 mx-auto mb-1 opacity-40" />
-                  Type a name to add a person
+                  Type a name to create an object
                 </div>
               )}
-              {filteredPeople.map((person, i) => (
-                <button key={person.id}
-                  className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
-                    i === mentionIdx && 'bg-accent')}
-                  onMouseDown={e => { e.preventDefault(); insertMention(person.name) }}
-                >
-                  <span className="text-base leading-none">{person.emoji}</span>
-                  <span className="flex-1">{person.name}</span>
-                </button>
-              ))}
-              {canCreate && (
-                <button
-                  className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
-                    filteredPeople.length === mentionIdx && 'bg-accent')}
-                  onMouseDown={e => {
-                    e.preventDefault()
-                    const person = onCreatePerson(mentionFilter.trim())
-                    insertMention(person.name)
-                  }}
-                >
-                  <UserPlus className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">Add <span className="text-foreground font-medium">{mentionFilter}</span></span>
-                </button>
+              {filteredObjects.map((person, i) => {
+                const objType = allTypes.find(t => t.id === (person.typeId ?? 'person'))
+                return (
+                  <button key={person.id}
+                    className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
+                      i === mentionIdx && 'bg-accent')}
+                    onMouseDown={e => { e.preventDefault(); insertMention(person.name) }}
+                  >
+                    <span className="text-base leading-none">{person.emoji}</span>
+                    <span className="flex-1">{person.name}</span>
+                    {objType && <span className="text-[10px] text-muted-foreground/60">{objType.name}</span>}
+                  </button>
+                )
+              })}
+              {canCreate && createOptions.length > 0 && (
+                <>
+                  {filteredObjects.length > 0 && <div className="border-t my-1" />}
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground/60 font-medium">Create as…</div>
+                  {createOptions.map((objType, i) => (
+                    <button
+                      key={objType.id}
+                      className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
+                        filteredObjects.length + i === mentionIdx && 'bg-accent')}
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        const person = onCreatePerson(trimmedFilter, objType.id)
+                        insertMention(person.name)
+                      }}
+                    >
+                      <span className="text-base leading-none">{objType.emoji}</span>
+                      <span className="text-muted-foreground flex-1">
+                        <span className="text-foreground font-medium">{trimmedFilter}</span>
+                        <span className="text-muted-foreground"> · {objType.name}</span>
+                      </span>
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </div>
@@ -1566,9 +1630,11 @@ function formatDate(ts: number): string {
 
 // ─── NoteEditor ───────────────────────────────────────────────────────────────
 
-function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson }: {
+function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, objectTypes }: {
   note: Note; allTags: string[]; onChange: (patch: Partial<Note>) => void; onDelete: () => void
-  people: Person[]; onCreatePerson: (name: string) => Person
+  people: Person[]; onCreatePerson: (name: string, typeId?: string) => Person
+  onNavigateTo: (noteId: string) => void
+  objectTypes: ObjectType[]
 }) {
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set())
@@ -2296,6 +2362,8 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
                 onPasteLines={insertPastedLines}
               people={people}
               onCreatePerson={onCreatePerson}
+              onNavigateTo={onNavigateTo}
+              objectTypes={objectTypes}
               onFocusPrev={focusPrevBlock}
               onFocusNext={focusNextBlock}
               onReorderDragStart={startReorderDrag}
@@ -2381,10 +2449,11 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson }: {
+function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType }: {
   notes: Note[]; activeId: string | null; search: string; onSearch: (q: string) => void
   onSelect: (id: string) => void; onCreate: () => void; activeTag: string | null; onTagFilter: (tag: string | null) => void
   people: Person[]; onDeletePerson: (id: string) => void
+  objectTypes: ObjectType[]; onCreateObjectType: (name: string, emoji: string) => void
 }) {
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
@@ -2452,40 +2521,52 @@ function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, active
           )}
         </div>
 
-        {/* People section */}
-        {people.length > 0 && (
-          <div className="px-3 pt-2 pb-2 border-t mt-2">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <User className="w-3 h-3 text-muted-foreground" />
-              <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">People</span>
+        {/* Objects section — grouped by type */}
+        {people.length > 0 && (() => {
+          const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
+          const typesWithObjects = allTypes.filter(t => people.some(p => (p.typeId ?? 'person') === t.id))
+          if (typesWithObjects.length === 0) return null
+          return (
+            <div className="px-3 pt-2 pb-2 border-t mt-2 space-y-3">
+              {typesWithObjects.map(objType => {
+                const typeObjects = people.filter(p => (p.typeId ?? 'person') === objType.id)
+                return (
+                  <div key={objType.id}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[11px] leading-none">{objType.emoji}</span>
+                      <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">{objType.name}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {typeObjects.map(person => (
+                        <div key={person.id} className="group/person flex items-center gap-0.5">
+                          <button
+                            onClick={() => person.noteId && onSelect(person.noteId)}
+                            className={cn(
+                              "flex-1 min-w-0 text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
+                              person.noteId && activeId === person.noteId
+                                ? 'bg-background shadow-sm ring-1 ring-border'
+                                : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            <span className="text-sm leading-none flex-shrink-0">{person.emoji}</span>
+                            <span className="truncate">{person.name}</span>
+                          </button>
+                          <button
+                            onClick={() => onDeletePerson(person.id)}
+                            className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 rounded hover:text-destructive text-muted-foreground/40 flex-shrink-0"
+                            title={`Remove ${objType.name.toLowerCase()}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <div className="space-y-0.5">
-              {people.map(person => (
-                <div key={person.id} className="group/person flex items-center gap-0.5">
-                  <button
-                    onClick={() => person.noteId && onSelect(person.noteId)}
-                    className={cn(
-                      "flex-1 min-w-0 text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
-                      person.noteId && activeId === person.noteId
-                        ? 'bg-background shadow-sm ring-1 ring-border'
-                        : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <span className="text-sm leading-none flex-shrink-0">{person.emoji}</span>
-                    <span className="truncate">{person.name}</span>
-                  </button>
-                  <button
-                    onClick={() => onDeletePerson(person.id)}
-                    className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 rounded hover:text-destructive text-muted-foreground/40 flex-shrink-0"
-                    title="Remove person"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Tag cloud */}
         {allTags.length > 0 && (
@@ -2539,12 +2620,14 @@ export default function NotesPage() {
   const [graphOpen, setGraphOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [people, setPeople] = useState<Person[]>([])
+  const [customObjectTypes, setCustomObjectTypes] = useState<ObjectType[]>([])
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
     setNotes(loaded)
     if (loaded.length > 0) setActiveId(loaded[0].id)
     setPeople(loadPeople())
+    setCustomObjectTypes(loadObjectTypes())
     setMounted(true)
   }, [])
 
@@ -2558,6 +2641,11 @@ export default function NotesPage() {
     if (mounted) savePeople(people)
   }, [people, mounted])
 
+  // Auto-save custom object types
+  useEffect(() => {
+    if (mounted) saveObjectTypes(customObjectTypes)
+  }, [customObjectTypes, mounted])
+
   function deletePerson(personId: string) {
     const person = people.find(p => p.id === personId)
     if (person?.noteId) {
@@ -2570,16 +2658,25 @@ export default function NotesPage() {
     setPeople(prev => prev.filter(p => p.id !== personId))
   }
 
-  function createPerson(name: string): Person {
+  function createObjectType(name: string, emoji: string): ObjectType {
+    const newType: ObjectType = { id: crypto.randomUUID(), name, emoji }
+    setCustomObjectTypes(prev => [...prev, newType])
+    return newType
+  }
+
+  function createPerson(name: string, typeId: string = 'person'): Person {
     // Create a dedicated note for this person
+    const allTypes = [...BUILTIN_OBJECT_TYPES, ...customObjectTypes]
+    const objType = allTypes.find(t => t.id === typeId)
+    const noteEmoji = objType?.emoji ?? PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)]
     const personNote: Note = {
       ...mkNote(),
       title: name,
-      emoji: PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)],
+      emoji: noteEmoji,
       blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
       tags: [],
     }
-    const person: Person = { ...mkPerson(name), noteId: personNote.id }
+    const person: Person = { ...mkPerson(name), noteId: personNote.id, typeId }
     // Store personId on the note so we can identify it as a person page
     ;(personNote as any).personId = person.id
     setNotes(prev => [personNote, ...prev])
@@ -2671,6 +2768,8 @@ export default function NotesPage() {
               onTagFilter={setActiveTag}
               people={people}
               onDeletePerson={deletePerson}
+              objectTypes={customObjectTypes}
+              onCreateObjectType={createObjectType}
             />
           </div>
         </div>
@@ -2707,6 +2806,8 @@ export default function NotesPage() {
                   onDelete={() => deleteNote(activeNote.id)}
                   people={people}
                   onCreatePerson={createPerson}
+                  onNavigateTo={id => setActiveId(id)}
+                  objectTypes={customObjectTypes}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
