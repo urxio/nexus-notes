@@ -17,13 +17,15 @@ import { ThemeSwitcher } from "@/components/theme-switcher"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo' | 'date'
+type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo' | 'date' | 'toggle'
 
 interface Block {
   id: string
   type: BlockType
   content: string
   checked?: boolean
+  open?: boolean
+  expandedContent?: string
 }
 
 interface Note {
@@ -54,12 +56,14 @@ const BLOCK_ICONS: Record<BlockType, React.ReactNode> = {
   divider: <Minus className="w-3.5 h-3.5" />,
   todo: <CheckSquare className="w-3.5 h-3.5" />,
   date: <Calendar className="w-3.5 h-3.5" />,
+  toggle: <ChevronRight className="w-3.5 h-3.5" />,
 }
 
 const BLOCK_LABELS: Record<BlockType, string> = {
   h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', p: 'Paragraph',
   bullet: 'Bullet List', numbered: 'Numbered List', quote: 'Quote',
   code: 'Code Block', divider: 'Divider', todo: 'To-do', date: 'Date',
+  toggle: 'Toggle',
 }
 
 const BLOCK_PLACEHOLDERS: Record<BlockType, string> = {
@@ -67,20 +71,22 @@ const BLOCK_PLACEHOLDERS: Record<BlockType, string> = {
   p: "Write something, or type '/' for commands…",
   bullet: 'List item', numbered: 'List item',
   quote: 'Quote…', code: 'Code…', divider: '', todo: 'To-do', date: '',
+  toggle: 'Toggle header…',
 }
 
 const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] = [
-  { type: 'p', label: 'Paragraph', shortcut: '' },
-  { type: 'h1', label: 'Heading 1', shortcut: '#' },
-  { type: 'h2', label: 'Heading 2', shortcut: '##' },
-  { type: 'h3', label: 'Heading 3', shortcut: '###' },
-  { type: 'bullet', label: 'Bullet List', shortcut: '-' },
-  { type: 'numbered', label: 'Numbered List', shortcut: '1.' },
-  { type: 'quote', label: 'Quote', shortcut: '>' },
-  { type: 'code', label: 'Code Block', shortcut: '```' },
-  { type: 'todo', label: 'To-do', shortcut: '[]' },
-  { type: 'divider', label: 'Divider', shortcut: '---' },
-  { type: 'date', label: 'Date', shortcut: '' },
+  { type: 'p',        label: 'Paragraph',    shortcut: '' },
+  { type: 'h1',       label: 'Heading 1',    shortcut: '#' },
+  { type: 'h2',       label: 'Heading 2',    shortcut: '##' },
+  { type: 'h3',       label: 'Heading 3',    shortcut: '###' },
+  { type: 'toggle',   label: 'Toggle',       shortcut: '' },
+  { type: 'bullet',   label: 'Bullet List',  shortcut: '-' },
+  { type: 'numbered', label: 'Numbered List',shortcut: '1.' },
+  { type: 'quote',    label: 'Quote',        shortcut: '>' },
+  { type: 'code',     label: 'Code Block',   shortcut: '```' },
+  { type: 'todo',     label: 'To-do',        shortcut: '[]' },
+  { type: 'divider',  label: 'Divider',      shortcut: '---' },
+  { type: 'date',     label: 'Date',         shortcut: '' },
 ]
 
 // ─── Seed Data ─────────────────────────────────────────────────────────────────
@@ -164,7 +170,7 @@ function mkBlock(type: BlockType = 'p'): Block {
 function normalizeBlocks(blocks: Block[]): Block[] {
   const result: Block[] = []
   for (const b of blocks) {
-    if (b.type !== 'code' && b.type !== 'date' && b.content.includes('\n')) {
+    if (b.type !== 'code' && b.type !== 'date' && b.type !== 'toggle' && b.content.includes('\n')) {
       const lines = b.content.split(/\r?\n/)
       result.push({ ...b, content: lines[0] })
       for (let i = 1; i < lines.length; i++) {
@@ -659,6 +665,8 @@ interface BlockItemProps {
 function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Body contenteditable for toggle blocks (mounted only when block.open === true)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const [showMenu, setShowMenu] = useState(false)
   const [menuFilter, setMenuFilter] = useState('')
   const [menuIdx, setMenuIdx] = useState(0)
@@ -883,6 +891,52 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
     }
   }
 
+  // ── Toggle-body handlers ──────────────────────────────────────────────────
+  // Callback ref: initialise body content the moment the element mounts (when
+  // the toggle opens) without including block.expandedContent in deps (which
+  // would reset the caret on every keystroke).
+  const bodyCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    ;(bodyRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+    if (el) el.textContent = block.expandedContent ?? ''
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block.open, block.type]) // re-initialise only when open/type changes
+
+  function handleBodyInput(e: React.FormEvent<HTMLDivElement>) {
+    const text = e.currentTarget.textContent || ''
+    onUpdate(block.id, { expandedContent: text })
+  }
+
+  function handleBodyKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      onInsert(block.id, 'p', '')
+      return
+    }
+    if (e.key === 'Backspace' && !e.currentTarget.textContent) {
+      e.preventDefault()
+      onUpdate(block.id, { open: false })
+      // Return focus to the toggle header
+      setTimeout(() => {
+        if (!ref.current) return
+        ref.current.focus()
+        try {
+          const range = document.createRange()
+          const sel   = window.getSelection()
+          const node  = ref.current.firstChild
+          if (node && node.nodeType === Node.TEXT_NODE) {
+            range.setStart(node, (node as Text).length)
+          } else {
+            range.setStart(ref.current, 0)
+          }
+          range.collapse(true)
+          sel?.removeAllRanges()
+          sel?.addRange(range)
+        } catch {}
+      }, 0)
+      return
+    }
+  }
+
   function applyMenuItem(type: BlockType) {
     if (ref.current) ref.current.textContent = ''
     const content = type === 'date' ? new Date().toISOString().split('T')[0] : ''
@@ -1014,6 +1068,7 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
     divider: '',
     todo: 'text-base leading-relaxed',
     date: '',
+    toggle: 'text-base font-medium leading-relaxed',
   }
 
   const editableEl = (
@@ -1085,6 +1140,41 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
               onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
               style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
             />
+          </div>
+        ) : block.type === 'toggle' ? (
+          <div className="flex-1">
+            {/* Toggle header row */}
+            <div className="flex items-start gap-1">
+              <button
+                className="mt-[3px] flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => onUpdate(block.id, { open: !block.open })}
+                title={block.open ? 'Collapse' : 'Expand'}
+              >
+                <ChevronRight className={cn('w-4 h-4 transition-transform duration-150', block.open && 'rotate-90')} />
+              </button>
+              {editableEl}
+            </div>
+            {/* Toggle body — only rendered when open */}
+            {block.open && (
+              <div className="ml-5 mt-1 pl-3 border-l-2 border-muted-foreground/20">
+                <div
+                  ref={bodyCallbackRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-placeholder="Toggle content…"
+                  className={cn(
+                    baseEditable,
+                    'text-base leading-relaxed text-foreground/75',
+                    isFocused && 'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40',
+                  )}
+                  onInput={handleBodyInput}
+                  onKeyDown={handleBodyKeyDown}
+                  onFocus={() => onFocus(block.id)}
+                  style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                />
+              </div>
+            )}
           </div>
         ) : (
           editableEl
@@ -1211,7 +1301,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     const idx = note.blocks.findIndex(b => b.id === blockId)
     if (idx <= 0) return
     const prev = note.blocks[idx - 1]
-    if (prev.type === 'date' || prev.type === 'divider') return
+    if (prev.type === 'date' || prev.type === 'divider' || prev.type === 'toggle') return
     const mergedContent = prev.content + content
     const newBlocks = note.blocks
       .filter(b => b.id !== blockId)
