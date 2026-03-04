@@ -79,14 +79,14 @@ const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] 
   { type: 'h1',       label: 'Heading 1',    shortcut: '#' },
   { type: 'h2',       label: 'Heading 2',    shortcut: '##' },
   { type: 'h3',       label: 'Heading 3',    shortcut: '###' },
-  { type: 'toggle',   label: 'Toggle',       shortcut: '' },
+  { type: 'toggle',   label: 'Toggle',       shortcut: '>>' },
   { type: 'bullet',   label: 'Bullet List',  shortcut: '-' },
   { type: 'numbered', label: 'Numbered List',shortcut: '1.' },
   { type: 'quote',    label: 'Quote',        shortcut: '>' },
   { type: 'code',     label: 'Code Block',   shortcut: '```' },
   { type: 'todo',     label: 'To-do',        shortcut: '[]' },
   { type: 'divider',  label: 'Divider',      shortcut: '---' },
-  { type: 'date',     label: 'Date',         shortcut: '' },
+  { type: 'date',     label: 'Date',         shortcut: '@' },
 ]
 
 // ─── Seed Data ─────────────────────────────────────────────────────────────────
@@ -719,14 +719,21 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
     const shortcuts: [string | RegExp, BlockType][] = [
       ['# ', 'h1'], ['## ', 'h2'], ['### ', 'h3'],
       ['- ', 'bullet'], ['* ', 'bullet'],
-      [/^1\. $/, 'numbered'], ['> ', 'quote'],
+      [/^1\. $/, 'numbered'],
+      ['>> ', 'toggle'], ['> ', 'quote'],   // >> must come before > to avoid early match
       ['```', 'code'], ['---', 'divider'], ['[]', 'todo'], ['[ ]', 'todo'],
+      ['@ ', 'date'],
     ]
     for (const [pat, newType] of shortcuts) {
       const match = typeof pat === 'string' ? text === pat : pat.test(text)
       if (match) {
         if (ref.current) ref.current.textContent = ''
-        onUpdate(block.id, { type: newType, content: '' })
+        const content = newType === 'date' ? new Date().toISOString().split('T')[0] : ''
+        onUpdate(block.id, { type: newType, content })
+        // date and divider have no contenteditable — auto-insert a paragraph after
+        if (newType === 'date' || newType === 'divider') {
+          setTimeout(() => onInsert(block.id, 'p', ''), 0)
+        }
         return
       }
     }
