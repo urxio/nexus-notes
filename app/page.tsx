@@ -38,6 +38,7 @@ interface Note {
   tags: string[]
   createdAt: number
   updatedAt: number
+  personId?: string
 }
 
 // ─── People ───────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface Person {
   id: string
   name: string
   emoji: string
+  noteId?: string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -695,9 +697,14 @@ interface BlockItemProps {
   onPasteLines: (afterId: string, lines: string[]) => void
   people: Person[]
   onCreatePerson: (name: string) => Person
+  onFocusPrev: (id: string) => void
+  onFocusNext: (id: string) => void
+  onReorderDragStart: (id: string) => void
+  isBeingDragged: boolean
+  showDropIndicatorAbove: boolean
 }
 
-function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson }: BlockItemProps) {
+function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson, onFocusPrev, onFocusNext, onReorderDragStart, isBeingDragged, showDropIndicatorAbove }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   // Body contenteditable for toggle blocks (mounted only when block.open === true)
@@ -911,6 +918,33 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
         return
       }
       if (e.key === 'Escape') { setShowMentionMenu(false); return }
+    }
+
+    // Arrow-key cross-block navigation
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && ref.current) {
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0)
+        const cursorRects = range.getClientRects()
+        const elRect = ref.current.getBoundingClientRect()
+        const lh = parseFloat(getComputedStyle(ref.current).lineHeight) || 24
+        if (e.key === 'ArrowUp') {
+          const top = cursorRects.length > 0 ? cursorRects[0].top : elRect.top
+          if (top <= elRect.top + lh * 0.6) {
+            e.preventDefault()
+            onFocusPrev(block.id)
+            return
+          }
+        } else {
+          const last = cursorRects[cursorRects.length - 1]
+          const bottom = last ? last.bottom : elRect.bottom
+          if (bottom >= elRect.bottom - lh * 0.6) {
+            e.preventDefault()
+            onFocusNext(block.id)
+            return
+          }
+        }
+      }
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1228,26 +1262,29 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       data-block-id={block.id}
       className={cn(
         "relative group -mx-7 px-7 py-1 transition-all rounded-sm",
-        isSelected && "bg-primary/10 ring-1 ring-primary/20"
+        isSelected && "bg-primary/10 ring-1 ring-primary/20",
+        isBeingDragged && "opacity-40"
       )}
       onClick={handleContainerClick}
       onMouseEnter={() => onMouseEnterBlock(index)}
     >
+      {showDropIndicatorAbove && (
+        <div className="absolute top-0 left-7 right-7 h-0.5 bg-primary rounded-full z-20 pointer-events-none" />
+      )}
       {/* Left-margin mousedown zone: drag down to select blocks without entering text */}
       <div
         className="absolute left-0 top-0 bottom-0 w-7 cursor-pointer"
         onMouseDown={handleGripMouseDown}
       />
       <div className="flex items-start gap-2">
-        {/* Drag handle */}
+        {/* Drag handle — reorder */}
         <div
-          data-drag-handle
-          onMouseDown={handleGripMouseDown}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onReorderDragStart(block.id) }}
           className={cn(
             "w-6 h-6 rounded cursor-grab active:cursor-grabbing flex items-center justify-center transition-opacity text-muted-foreground/40 hover:text-muted-foreground/70 flex-shrink-0 mt-1",
-            isSelected ? "opacity-60" : "opacity-0 group-hover:opacity-100"
+            isBeingDragged ? "opacity-60" : "opacity-0 group-hover:opacity-100"
           )}
-          title="Drag to select · Shift+click range · Cmd+click toggle"
+          title="Drag to reorder"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -1465,6 +1502,73 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
   // Ref: when set, the next focusedBlockId-change effect will place the cursor
   // at a specific position (and optionally sync DOM content) instead of start.
   const pendingCursorRef = useRef<{ id: string; pos: number; content?: string } | null>(null)
+
+  // ── Block reorder drag ───────────────────────────────────────────────────
+  const [reorderDragId, setReorderDragId] = useState<string | null>(null)
+  const [reorderDropIdx, setReorderDropIdx] = useState<number | null>(null)
+  const reorderRef = useRef<{ dragId: string | null; dropIdx: number | null }>({ dragId: null, dropIdx: null })
+
+  function startReorderDrag(blockId: string) {
+    reorderRef.current = { dragId: blockId, dropIdx: null }
+    setReorderDragId(blockId)
+    setFocusedBlockId(null)
+    setSelectedBlockIds(new Set())
+    ;(document.activeElement as HTMLElement)?.blur()
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!reorderRef.current.dragId) return
+      const blockEls = Array.from(document.querySelectorAll('[data-block-id]'))
+      let dropIdx = blockEls.length
+      for (let i = 0; i < blockEls.length; i++) {
+        const rect = blockEls[i].getBoundingClientRect()
+        if (e.clientY < rect.top + rect.height / 2) { dropIdx = i; break }
+      }
+      reorderRef.current.dropIdx = dropIdx
+      setReorderDropIdx(dropIdx)
+    }
+    function onMouseUp() {
+      const { dragId, dropIdx } = reorderRef.current
+      if (dragId !== null && dropIdx !== null) {
+        const blocks = noteBlocksRef.current
+        const fromIdx = blocks.findIndex(b => b.id === dragId)
+        if (fromIdx !== -1 && dropIdx !== fromIdx && dropIdx !== fromIdx + 1) {
+          const newBlocks = [...blocks]
+          const [removed] = newBlocks.splice(fromIdx, 1)
+          const insertAt = dropIdx > fromIdx ? dropIdx - 1 : dropIdx
+          newBlocks.splice(insertAt, 0, removed)
+          onChange({ blocks: newBlocks })
+        }
+      }
+      reorderRef.current = { dragId: null, dropIdx: null }
+      setReorderDragId(null)
+      setReorderDropIdx(null)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [onChange])
+
+  // ── Arrow-key cross-block navigation ────────────────────────────────────
+  function focusPrevBlock(id: string) {
+    const idx = note.blocks.findIndex(b => b.id === id)
+    if (idx <= 0) return
+    const prev = note.blocks[idx - 1]
+    if (prev.type === 'date' || prev.type === 'divider') { setFocusedBlockId(prev.id); return }
+    pendingCursorRef.current = { id: prev.id, pos: prev.content.length }
+    setFocusedBlockId(prev.id)
+  }
+
+  function focusNextBlock(id: string) {
+    const idx = note.blocks.findIndex(b => b.id === id)
+    if (idx >= note.blocks.length - 1) return
+    const next = note.blocks[idx + 1]
+    setFocusedBlockId(next.id)
+  }
 
   function deleteBlock(id: string) {
     const idx = note.blocks.findIndex(b => b.id === id)
@@ -2077,10 +2181,20 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
                 onPasteLines={insertPastedLines}
               people={people}
               onCreatePerson={onCreatePerson}
+              onFocusPrev={focusPrevBlock}
+              onFocusNext={focusNextBlock}
+              onReorderDragStart={startReorderDrag}
+              isBeingDragged={reorderDragId === block.id}
+              showDropIndicatorAbove={reorderDropIdx === index}
               />
               )
             })}
           </div>
+
+          {/* Drop indicator after last block */}
+          {reorderDropIdx === note.blocks.length && (
+            <div className="h-0.5 bg-primary rounded-full mx-7 mt-0.5 pointer-events-none" />
+          )}
 
           {/* Add block button */}
           <button
@@ -2152,9 +2266,10 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson 
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter }: {
+function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people }: {
   notes: Note[]; activeId: string | null; search: string; onSearch: (q: string) => void
   onSelect: (id: string) => void; onCreate: () => void; activeTag: string | null; onTagFilter: (tag: string | null) => void
+  people: Person[]
 }) {
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
@@ -2221,6 +2336,33 @@ function Sidebar({ notes, activeId, search, onSearch, onSelect, onCreate, active
             </div>
           )}
         </div>
+
+        {/* People section */}
+        {people.length > 0 && (
+          <div className="px-3 pt-2 pb-2 border-t mt-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">People</span>
+            </div>
+            <div className="space-y-0.5">
+              {people.map(person => (
+                <button
+                  key={person.id}
+                  onClick={() => person.noteId && onSelect(person.noteId)}
+                  className={cn(
+                    "w-full text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
+                    person.noteId && activeId === person.noteId
+                      ? 'bg-background shadow-sm ring-1 ring-border'
+                      : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <span className="text-sm leading-none">{person.emoji}</span>
+                  <span className="truncate">{person.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tag cloud */}
         {allTags.length > 0 && (
@@ -2294,7 +2436,18 @@ export default function NotesPage() {
   }, [people, mounted])
 
   function createPerson(name: string): Person {
-    const person = mkPerson(name)
+    // Create a dedicated note for this person
+    const personNote: Note = {
+      ...mkNote(),
+      title: name,
+      emoji: PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)],
+      blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
+      tags: [],
+    }
+    const person: Person = { ...mkPerson(name), noteId: personNote.id }
+    // Store personId on the note so we can identify it as a person page
+    ;(personNote as any).personId = person.id
+    setNotes(prev => [personNote, ...prev])
     setPeople(prev => [...prev, person])
     return person
   }
@@ -2381,6 +2534,7 @@ export default function NotesPage() {
               onCreate={createNote}
               activeTag={activeTag}
               onTagFilter={setActiveTag}
+              people={people}
             />
           </div>
         </div>
