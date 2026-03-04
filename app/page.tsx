@@ -15,6 +15,7 @@ import {
   User, Bold, Italic, Strikethrough, Palette, Underline
 } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
+import { useToast } from "@/components/ui/use-toast"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -231,6 +232,10 @@ function mkNote(): Note {
 
 function mkBlock(type: BlockType = 'p'): Block {
   return { id: crypto.randomUUID(), type, content: '' }
+}
+
+function cloneBlock(b: Block): Block {
+  return { id: crypto.randomUUID(), type: b.type, content: b.content, expandedContent: b.expandedContent, checked: b.checked }
 }
 
 // Split any blocks whose content contains \n into multiple separate blocks.
@@ -1976,15 +1981,89 @@ function formatDate(ts: number): string {
 // ─── NoteEditor ───────────────────────────────────────────────────────────────
 
 function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, objectTypes, onCreateObjectType }: {
-  note: Note; allTags: string[]; onChange: (patch: Partial<Note>) => void; onDelete: () => void
-  people: Person[]; onCreatePerson: (name: string, typeId?: string) => Person
-  onNavigateTo: (noteId: string) => void
-  objectTypes: ObjectType[]
+  note: Note,
+  allTags: string[],
+  onChange: (noteId: string, updates: Partial<Note>) => void,
+  onDelete: (noteId: string) => void,
+  people: Person[],
+  onCreatePerson: (name: string) => Person,
+  onNavigateTo?: (noteId: string) => void,
+  objectTypes: ObjectType[],
   onCreateObjectType: (name: string, emoji: string) => ObjectType
 }) {
+  const { toast } = useToast()
+
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set())
   const [lastSelectedIdx, setLastSelectedIdx] = useState<number | null>(null)
+
+  // History State
+  const historyRef = useRef<{ past: Block[][], future: Block[][] }>({ past: [], future: [] })
+  const blockMapRef = useRef<Record<string, Block>>(
+    note.blocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+  )
+
+  // Track the note blocks changing for debounced saves
+  const latestBlocksRef = useRef(note.blocks)
+  if (latestBlocksRef.current !== note.blocks) {
+    const isSameMap = note.blocks.every(b => blockMapRef.current[b.id] === b)
+    if (!isSameMap) {
+      // Reassign only when external (non-undo) changes happen
+      latestBlocksRef.current = note.blocks
+      blockMapRef.current = note.blocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+    }
+  }
+
+  const debouncedHistoryUpdateRef = useRef<NodeJS.Timeout | null>(null)
+  const pushHistory = useCallback((newBlocks: Block[]) => {
+    historyRef.current = {
+      past: [...historyRef.current.past, latestBlocksRef.current],
+      future: []
+    }
+    latestBlocksRef.current = newBlocks
+    blockMapRef.current = newBlocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+    if (debouncedHistoryUpdateRef.current) {
+      clearTimeout(debouncedHistoryUpdateRef.current)
+      debouncedHistoryUpdateRef.current = null
+    }
+  }, [])
+
+  const debouncedPushHistory = useCallback((newBlocks: Block[]) => {
+    if (debouncedHistoryUpdateRef.current) clearTimeout(debouncedHistoryUpdateRef.current)
+    debouncedHistoryUpdateRef.current = setTimeout(() => {
+      pushHistory(latestBlocksRef.current)
+      latestBlocksRef.current = newBlocks
+      blockMapRef.current = newBlocks.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+    }, 800)
+  }, [pushHistory])
+
+  function undo() {
+    const { past, future } = historyRef.current
+    if (past.length === 0) return
+    const current = latestBlocksRef.current
+    const previous = past[past.length - 1]
+    historyRef.current = {
+      past: past.slice(0, past.length - 1),
+      future: [current, ...future]
+    }
+    latestBlocksRef.current = previous
+    blockMapRef.current = previous.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+    onChange(note.id, { blocks: previous })
+  }
+
+  function redo() {
+    const { past, future } = historyRef.current
+    if (future.length === 0) return
+    const current = latestBlocksRef.current
+    const next = future[0]
+    historyRef.current = {
+      past: [...past, current],
+      future: future.slice(1)
+    }
+    latestBlocksRef.current = next
+    blockMapRef.current = next.reduce((acc, b) => ({ ...acc, [b.id]: b }), {})
+    onChange(note.id, { blocks: next })
+  }
   const [tagInput, setTagInput] = useState('')
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -1998,10 +2077,14 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function updateBlock(id: string, patch: Partial<Block>) {
-    onChange({
-      blocks: note.blocks.map(b => b.id === id ? { ...b, ...patch } : b),
-    })
+  function handleUpdateBlock(id: string, updates: Partial<Block>) {
+    const next = note.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
+    if ('type' in updates || 'checked' in updates) {
+      pushHistory(next)
+    } else {
+      debouncedPushHistory(next)
+    }
+    onChange(note.id, { blocks: next })
   }
 
   function selectBlock(blockId: string, evt: React.MouseEvent) {
@@ -2010,9 +2093,8 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
     if (evt.shiftKey && lastSelectedIdx !== null) {
       // Range select
-      const [start, end] = idx < lastSelectedIdx ? [idx, lastSelectedIdx] : [lastSelectedIdx, idx]
       const ids = new Set<string>()
-      for (let i = start; i <= end; i++) {
+      for (let i = Math.min(idx, lastSelectedIdx); i <= Math.max(idx, lastSelectedIdx); i++) {
         ids.add(note.blocks[i].id)
       }
       setSelectedBlockIds(ids)
@@ -2073,7 +2155,8 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
           const [removed] = newBlocks.splice(fromIdx, 1)
           const insertAt = dropIdx > fromIdx ? dropIdx - 1 : dropIdx
           newBlocks.splice(insertAt, 0, removed)
-          onChange({ blocks: newBlocks })
+          pushHistory(newBlocks)
+          onChange(note.id, { blocks: newBlocks })
         }
       }
       reorderRef.current = { dragId: null, dropIdx: null }
@@ -2086,7 +2169,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [onChange])
+  }, [onChange, pushHistory, note.id])
 
   // ── Arrow-key cross-block navigation ────────────────────────────────────
   function focusPrevBlock(id: string) {
@@ -2108,7 +2191,9 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   function deleteBlock(id: string) {
     const idx = note.blocks.findIndex(b => b.id === id)
     const prev = note.blocks[idx - 1]
-    onChange({ blocks: note.blocks.filter(b => b.id !== id) })
+    const newBlocks = note.blocks.filter(b => b.id !== id)
+    pushHistory(newBlocks)
+    onChange(note.id, { blocks: newBlocks })
     if (prev) {
       // Place cursor at end of the previous block, not start
       pendingCursorRef.current = { id: prev.id, pos: prev.content.length }
@@ -2130,7 +2215,8 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     const newBlocks = note.blocks
       .filter(b => b.id !== blockId)
       .map(b => b.id === prev.id ? { ...b, content: mergedContent } : b)
-    onChange({ blocks: newBlocks })
+    pushHistory(newBlocks)
+    onChange(note.id, { blocks: newBlocks })
     // cursor lands right at the join: after prev's original text
     pendingCursorRef.current = { id: prev.id, pos: prev.content.length, content: mergedContent }
     setFocusedBlockId(prev.id)
@@ -2176,9 +2262,12 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     const newBlocks = note.blocks.filter(b => !selectedBlockIds.has(b.id))
     if (newBlocks.length === 0) {
       // Don't allow deleting all blocks, keep one empty paragraph
-      onChange({ blocks: [mkBlock('p')] })
+      const emptyBlock = mkBlock('p')
+      pushHistory([emptyBlock])
+      onChange(note.id, { blocks: [emptyBlock] })
     } else {
-      onChange({ blocks: newBlocks })
+      pushHistory(newBlocks)
+      onChange(note.id, { blocks: newBlocks })
     }
     setSelectedBlockIds(new Set())
     setLastSelectedIdx(null)
@@ -2194,7 +2283,8 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       ...newBlocks,
       ...blocks.slice(idx + 1),
     ]
-    onChange({ blocks: updated })
+    pushHistory(updated)
+    onChange(note.id, { blocks: updated })
     setFocusedBlockId(newBlocks[newBlocks.length - 1].id)
   }
 
@@ -2206,20 +2296,21 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     const blocks = noteBlocksRef.current
     const idx = blocks.findIndex(b => b.id === afterId)
     const newBlocks = [...blocks.slice(0, idx + 1), nb, ...blocks.slice(idx + 1)]
-    onChange({ blocks: newBlocks })
+    pushHistory(newBlocks)
+    onChange(note.id, { blocks: newBlocks })
     setFocusedBlockId(nb.id)
   }
 
   function addTag(tag: string) {
     const t = tag.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     if (!t || note.tags.includes(t)) return
-    onChange({ tags: [...note.tags, t] })
+    onChange(note.id, { tags: [...note.tags, t] })
     setTagInput('')
     setTagSuggestions([])
   }
 
   function removeTag(tag: string) {
-    onChange({ tags: note.tags.filter(t => t !== tag) })
+    onChange(note.id, { tags: note.tags.filter(t => t !== tag) })
   }
 
   function handleTagInputChange(val: string) {
@@ -2363,7 +2454,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       // Clear the browser selection before updating React state
       sel.removeAllRanges()
 
-      onChange({ blocks: newBlocks })
+      onChange(note.id, { blocks: newBlocks })
       setFocusedBlockId(fromBlock.id)
 
       // Place cursor at the merge point after React re-renders
@@ -2397,7 +2488,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
       return true
     }
-  }, [note.blocks, onChange])
+  }, [note.blocks, onChange, note.id])
 
   // Called by BlockItem's grip/margin onMouseDown
   function startDragSelect(blockId: string, blockIdx: number) {
@@ -2522,6 +2613,33 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       const activeEl = document.activeElement as HTMLElement
       const isContentEditable = !!(activeEl?.contentEditable === 'true' || activeEl?.closest('[contenteditable]'))
 
+      // ── Copied Blocks Cmd-C Cmd-V Navigation ────────────────────────────────
+      // Cmd-Z Undo
+      if (e.key.toLowerCase() === 'z' && e.metaKey && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+
+      // Cmd-Shift-Z Redo
+      if ((e.key.toLowerCase() === 'z' && e.metaKey && e.shiftKey) || (e.key.toLowerCase() === 'y' && e.ctrlKey)) {
+        e.preventDefault()
+        redo()
+        return
+      }
+
+      // Cmd-C Copy Selected Blocks
+      if (e.key.toLowerCase() === 'c' && (e.metaKey || e.ctrlKey)) {
+        if (selectedIdsRef.current.size > 0 && !isContentEditable) {
+          e.preventDefault()
+          const blocksToCopy = note.blocks.filter(b => selectedIdsRef.current.has(b.id))
+          const payload = JSON.stringify({ source: 'locus_blocks', blocks: blocksToCopy })
+          navigator.clipboard.writeText(payload)
+          toast({ description: `${blocksToCopy.length} blocks copied.` })
+          return
+        }
+      }
+
       // ── Cross-block text-selection: Backspace / Delete ──────────────────────
       // Must run before the block-selection handler so text-editing wins when
       // the user has dragged a native text selection across multiple blocks.
@@ -2583,6 +2701,40 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
+  // Paste handler for blocks
+  useEffect(() => {
+    function handleGlobalPaste(e: ClipboardEvent) {
+      // Allow native pasting inside active inputs or contenteditables,
+      // EXCEPT when we intercept a custom Locus blocks payload
+      const text = e.clipboardData?.getData('text/plain') || ''
+      try {
+        const payload = JSON.parse(text)
+        if (payload.source === 'locus_blocks' && Array.isArray(payload.blocks)) {
+          e.preventDefault()
+          const incomingBlocks = payload.blocks.map((b: Block) => cloneBlock(b))
+
+          let insertIdx = note.blocks.findIndex(b => b.id === focusedBlockId)
+          if (insertIdx === -1) {
+            insertIdx = selectedIdsRef.current.size > 0
+              ? note.blocks.findIndex(b => selectedIdsRef.current.has(b.id))
+              : note.blocks.length - 1
+          }
+
+          const next = [...note.blocks.slice(0, insertIdx + 1), ...incomingBlocks, ...note.blocks.slice(insertIdx + 1)]
+          pushHistory(next)
+          onChange(note.id, { blocks: next })
+          setFocusedBlockId(incomingBlocks[incomingBlocks.length - 1].id)
+          toast({ description: `${incomingBlocks.length} blocks pasted.` })
+        }
+      } catch {
+        // Not our payload, let the browser paste normally
+      }
+    }
+
+    document.addEventListener('paste', handleGlobalPaste)
+    return () => document.removeEventListener('paste', handleGlobalPaste)
+  }, [note.blocks, focusedBlockId, pushHistory, onChange, note.id])
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header bar */}
@@ -2637,7 +2789,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={onDelete}>
+                onClick={() => onDelete(note.id)}>
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </TooltipTrigger>
@@ -2664,7 +2816,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
                     <button key={em}
                       className={cn("w-10 h-10 flex items-center justify-center flex-shrink-0 overflow-hidden rounded hover:bg-accent transition-colors", em === note.emoji && 'bg-accent')}
                       style={{ fontSize: '22px', lineHeight: 1 }}
-                      onClick={() => { onChange({ emoji: em }); setShowEmojiPicker(false) }}
+                      onClick={() => { onChange(note.id, { emoji: em }); setShowEmojiPicker(false) }}
                     >{em}</button>
                   ))}
                 </div>
@@ -2673,7 +2825,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
             <input
               ref={titleRef}
               value={note.title}
-              onChange={e => onChange({ title: e.target.value })}
+              onChange={e => onChange(note.id, { title: e.target.value })}
               placeholder="Untitled"
               className="w-full text-4xl font-bold tracking-tight bg-transparent outline-none placeholder:text-muted-foreground/40 border-none"
             />
@@ -2707,10 +2859,20 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
                   numBlocks={note.blocks.length}
                   isFocused={focusedBlockId === block.id}
                   isSelected={selectedBlockIds.has(block.id)}
-                  onUpdate={updateBlock}
+                  onUpdate={handleUpdateBlock}
                   onInsert={insertBlockAfter}
                   onDelete={deleteBlock}
                   onMergePrev={mergePrevBlock}
+                  onDuplicate={(id) => {
+                    const idx = note.blocks.findIndex(b => b.id === id)
+                    if (idx === -1) return
+                    const b = note.blocks[idx]
+                    const newBlock: Block = { ...b, id: crypto.randomUUID() }
+                    const newBlocks = [...note.blocks.slice(0, idx + 1), newBlock, ...note.blocks.slice(idx + 1)]
+                    pushHistory(newBlocks)
+                    onChange(note.id, { blocks: newBlocks })
+                    setFocusedBlockId(newBlock.id)
+                  }}
                   onFocus={setFocusedBlockId}
                   onSelect={selectBlock}
                   onDragSelectStart={startDragSelect}
@@ -2741,7 +2903,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
             className="mt-4 ml-7 flex items-center gap-2 text-sm text-muted-foreground/40 hover:text-muted-foreground transition-colors group"
             onClick={() => {
               const nb = mkBlock('p')
-              onChange({ blocks: [...note.blocks, nb] })
+              onChange(note.id, { blocks: [...note.blocks, nb] })
               setFocusedBlockId(nb.id)
             }}
           >
@@ -3196,8 +3358,8 @@ export default function NotesPage() {
                   key={activeNote.id}
                   note={activeNote}
                   allTags={allTags}
-                  onChange={patch => updateNote(activeNote.id, patch)}
-                  onDelete={() => deleteNote(activeNote.id)}
+                  onChange={updateNote}
+                  onDelete={deleteNote}
                   people={people}
                   onCreatePerson={createPerson}
                   onNavigateTo={id => setActiveId(id)}
