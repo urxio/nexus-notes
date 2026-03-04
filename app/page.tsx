@@ -647,6 +647,7 @@ interface BlockItemProps {
   onUpdate: (id: string, patch: Partial<Block>) => void
   onInsert: (afterId: string, type?: BlockType, content?: string) => void
   onDelete: (id: string) => void
+  onMergePrev: (id: string, content: string) => void
   onDuplicate?: (id: string) => void
   onFocus: (id: string) => void
   onSelect: (id: string, evt: React.MouseEvent) => void
@@ -655,7 +656,7 @@ interface BlockItemProps {
   onPasteLines: (afterId: string, lines: string[]) => void
 }
 
-function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines }: BlockItemProps) {
+function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -854,6 +855,25 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
           onUpdate(block.id, { type: 'p', content: '' })
         }
         return
+      }
+
+      // Non-empty block: if cursor is at position 0, merge this block's
+      // content onto the end of the previous block (Notion-style).
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+        let cursorAtStart = false
+        try {
+          const range = sel.getRangeAt(0)
+          const pre   = document.createRange()
+          pre.setStart(e.currentTarget, 0)
+          pre.setEnd(range.startContainer, range.startOffset)
+          cursorAtStart = pre.toString().length === 0
+        } catch {}
+        if (cursorAtStart) {
+          e.preventDefault()
+          onMergePrev(block.id, text)
+          return
+        }
       }
     }
 
@@ -1167,15 +1187,75 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
     }
   }
 
+  // Ref: when set, the next focusedBlockId-change effect will place the cursor
+  // at a specific position (and optionally sync DOM content) instead of start.
+  const pendingCursorRef = useRef<{ id: string; pos: number; content?: string } | null>(null)
+
   function deleteBlock(id: string) {
     const idx = note.blocks.findIndex(b => b.id === id)
     const prev = note.blocks[idx - 1]
     onChange({ blocks: note.blocks.filter(b => b.id !== id) })
-    if (prev) setFocusedBlockId(prev.id)
+    if (prev) {
+      // Place cursor at end of the previous block, not start
+      pendingCursorRef.current = { id: prev.id, pos: prev.content.length }
+      setFocusedBlockId(prev.id)
+    }
     // Clear selection
     selectedBlockIds.delete(id)
     setSelectedBlockIds(new Set(selectedBlockIds))
   }
+
+  // Merge blockId into its predecessor: append content to prev block's text,
+  // delete blockId, and place cursor at the join point.
+  function mergePrevBlock(blockId: string, content: string) {
+    const idx = note.blocks.findIndex(b => b.id === blockId)
+    if (idx <= 0) return
+    const prev = note.blocks[idx - 1]
+    if (prev.type === 'date' || prev.type === 'divider') return
+    const mergedContent = prev.content + content
+    const newBlocks = note.blocks
+      .filter(b => b.id !== blockId)
+      .map(b => b.id === prev.id ? { ...b, content: mergedContent } : b)
+    onChange({ blocks: newBlocks })
+    // cursor lands right at the join: after prev's original text
+    pendingCursorRef.current = { id: prev.id, pos: prev.content.length, content: mergedContent }
+    setFocusedBlockId(prev.id)
+  }
+
+  // Apply pending cursor position after React re-renders.
+  // Runs whenever focusedBlockId changes — child (BlockItem) effects run first
+  // (they place cursor at start), then this parent effect overrides to the
+  // correct position. content is also synced here when a merge happened.
+  useEffect(() => {
+    const p = pendingCursorRef.current
+    if (!p || p.id !== focusedBlockId) return
+    pendingCursorRef.current = null
+
+    const el = document.querySelector(
+      `[data-block-id="${p.id}"] [contenteditable]`
+    ) as HTMLElement | null
+    if (!el) return
+
+    // Sync DOM text if a merge changed the content (content-sync effect only
+    // fires on type changes, not content changes, to avoid cursor jump on typing)
+    if (p.content !== undefined) el.textContent = p.content
+
+    el.focus()
+    try {
+      const range = document.createRange()
+      const sel   = window.getSelection()
+      const node  = el.firstChild
+      if (node && node.nodeType === Node.TEXT_NODE) {
+        const pos = Math.min(p.pos, node.textContent?.length ?? 0)
+        range.setStart(node, pos)
+      } else {
+        range.setStart(el, 0)
+      }
+      range.collapse(true)
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    } catch {}
+  }, [focusedBlockId])
 
   function deleteSelectedBlocks() {
     if (selectedBlockIds.size === 0) return
@@ -1710,6 +1790,7 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
                 onUpdate={updateBlock}
                 onInsert={insertBlockAfter}
                 onDelete={deleteBlock}
+                onMergePrev={mergePrevBlock}
                 onFocus={setFocusedBlockId}
                 onSelect={selectBlock}
                 onDragSelectStart={startDragSelect}
