@@ -12,6 +12,7 @@ import {
   AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
   Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
   ChevronRight, BookOpen, MoreHorizontal, Calendar, GripVertical, Copy,
+  User, UserPlus,
 } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 
@@ -37,6 +38,14 @@ interface Note {
   tags: string[]
   createdAt: number
   updatedAt: number
+}
+
+// ─── People ───────────────────────────────────────────────────────────────────
+
+interface Person {
+  id: string
+  name: string
+  emoji: string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -86,7 +95,7 @@ const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] 
   { type: 'code',     label: 'Code Block',   shortcut: '```' },
   { type: 'todo',     label: 'To-do',        shortcut: '[]' },
   { type: 'divider',  label: 'Divider',      shortcut: '---' },
-  { type: 'date',     label: 'Date',         shortcut: '@' },
+  { type: 'date',     label: 'Date',         shortcut: '' },
 ]
 
 // ─── Seed Data ─────────────────────────────────────────────────────────────────
@@ -133,6 +142,30 @@ const SEED_NOTES: Note[] = [
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'locus-notes-v1'
+const PEOPLE_STORAGE_KEY = 'locus-people-v1'
+const PERSON_EMOJIS = ['👤', '👩', '👨', '🧑', '👩‍💻', '👨‍💻', '🧑‍🎨', '👩‍🎨', '🧑‍🏫', '👩‍🏫', '👨‍🏫', '🧑‍⚕️']
+
+function loadPeople(): Person[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(PEOPLE_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+function savePeople(people: Person[]) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(people)) } catch {}
+}
+
+function mkPerson(name: string): Person {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    emoji: PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)],
+  }
+}
 
 function loadNotes(): Note[] {
   if (typeof window === 'undefined') return SEED_NOTES
@@ -660,9 +693,11 @@ interface BlockItemProps {
   onDragSelectStart: (id: string, idx: number) => void
   onMouseEnterBlock: (idx: number) => void
   onPasteLines: (afterId: string, lines: string[]) => void
+  people: Person[]
+  onCreatePerson: (name: string) => Person
 }
 
-function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines }: BlockItemProps) {
+function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson }: BlockItemProps) {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   // Body contenteditable for toggle blocks (mounted only when block.open === true)
@@ -671,6 +706,11 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   const [menuFilter, setMenuFilter] = useState('')
   const [menuIdx, setMenuIdx] = useState(0)
   const prevContentRef = useRef(block.content)
+  // @ mention state
+  const [showMentionMenu, setShowMentionMenu] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const [mentionIdx, setMentionIdx] = useState(0)
+  const mentionAnchorRef = useRef<number>(-1)
 
   // Set content imperatively on mount / type change (avoid cursor jump)
   useEffect(() => {
@@ -722,7 +762,6 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       [/^1\. $/, 'numbered'],
       ['>> ', 'toggle'], ['> ', 'quote'],   // >> must come before > to avoid early match
       ['```', 'code'], ['---', 'divider'], ['[]', 'todo'], ['[ ]', 'todo'],
-      ['@ ', 'date'],
     ]
     for (const [pat, newType] of shortcuts) {
       const match = typeof pat === 'string' ? text === pat : pat.test(text)
@@ -745,6 +784,34 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       setShowMenu(true)
     } else {
       setShowMenu(false)
+    }
+
+    // @ mention — detect `@word` pattern immediately before cursor
+    try {
+      const cursorEl = e.currentTarget
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+        const range = sel.getRangeAt(0)
+        const pre = document.createRange()
+        pre.setStart(cursorEl, 0)
+        pre.setEnd(range.startContainer, range.startOffset)
+        const textBeforeCursor = pre.toString()
+        const atMatch = textBeforeCursor.match(/@([^@\s]*)$/)
+        if (atMatch) {
+          setMentionFilter(atMatch[1])
+          setMentionIdx(0)
+          setShowMentionMenu(true)
+          mentionAnchorRef.current = textBeforeCursor.length - atMatch[0].length
+        } else {
+          setShowMentionMenu(false)
+          mentionAnchorRef.current = -1
+        }
+      } else {
+        setShowMentionMenu(false)
+        mentionAnchorRef.current = -1
+      }
+    } catch {
+      setShowMentionMenu(false)
     }
 
     onUpdate(block.id, { content: text })
@@ -826,6 +893,26 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       if (e.key === 'Escape') { setShowMenu(false); return }
     }
 
+    if (showMentionMenu) {
+      const filteredPeople = people.filter(p =>
+        p.name.toLowerCase().includes(mentionFilter.toLowerCase())
+      )
+      const totalItems = filteredPeople.length + (mentionFilter.trim().length > 0 && !filteredPeople.some(p => p.name.toLowerCase() === mentionFilter.toLowerCase()) ? 1 : 0)
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, totalItems - 1)); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (filteredPeople[mentionIdx]) {
+          insertMention(filteredPeople[mentionIdx].name)
+        } else if (mentionIdx === filteredPeople.length && mentionFilter.trim()) {
+          const person = onCreatePerson(mentionFilter.trim())
+          insertMention(person.name)
+        }
+        return
+      }
+      if (e.key === 'Escape') { setShowMentionMenu(false); return }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if ((block.type === 'bullet' || block.type === 'numbered') && !text) {
@@ -896,6 +983,47 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
       e.preventDefault()
       // indent bullet → sub-bullet (simple: just continue as bullet)
     }
+  }
+
+  // ── Mention insertion ─────────────────────────────────────────────────────
+  function insertMention(personName: string) {
+    const el = ref.current
+    if (!el || mentionAnchorRef.current === -1) return
+    const currentText = el.textContent || ''
+    const anchorPos = mentionAnchorRef.current
+    // Find current cursor position
+    let cursorPos = currentText.length
+    const sel = window.getSelection()
+    if (sel && sel.rangeCount > 0) {
+      try {
+        const range = sel.getRangeAt(0)
+        const pre = document.createRange()
+        pre.setStart(el, 0)
+        pre.setEnd(range.startContainer, range.startOffset)
+        cursorPos = pre.toString().length
+      } catch {}
+    }
+    // Replace @filter with @personName
+    const mentionText = `@${personName}`
+    const newText = currentText.slice(0, anchorPos) + mentionText + ' ' + currentText.slice(cursorPos)
+    el.textContent = newText
+    // Place cursor after the inserted mention
+    const newCursorPos = anchorPos + mentionText.length + 1
+    try {
+      const textNode = el.firstChild
+      if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const range = document.createRange()
+        const pos = Math.min(newCursorPos, (textNode as Text).length)
+        range.setStart(textNode, pos)
+        range.collapse(true)
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+      }
+    } catch {}
+    onUpdate(block.id, { content: newText })
+    setShowMentionMenu(false)
+    setMentionFilter('')
+    mentionAnchorRef.current = -1
   }
 
   // ── Toggle-body handlers ──────────────────────────────────────────────────
@@ -1218,6 +1346,55 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
           </div>
         </div>
       )}
+
+      {/* @ Mention menu */}
+      {showMentionMenu && (() => {
+        const filteredPeople = people.filter(p =>
+          p.name.toLowerCase().includes(mentionFilter.toLowerCase())
+        )
+        const canCreate = mentionFilter.trim().length > 0 &&
+          !filteredPeople.some(p => p.name.toLowerCase() === mentionFilter.trim().toLowerCase())
+        return (
+          <div className="absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border bg-popover shadow-lg overflow-hidden">
+            <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-medium tracking-wider border-b flex items-center gap-1.5">
+              <User className="w-3 h-3" />
+              PEOPLE
+            </div>
+            <div className="py-1 max-h-52 overflow-y-auto">
+              {filteredPeople.length === 0 && !canCreate && (
+                <div className="px-3 py-3 text-sm text-muted-foreground text-center">
+                  <User className="w-4 h-4 mx-auto mb-1 opacity-40" />
+                  Type a name to add a person
+                </div>
+              )}
+              {filteredPeople.map((person, i) => (
+                <button key={person.id}
+                  className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
+                    i === mentionIdx && 'bg-accent')}
+                  onMouseDown={e => { e.preventDefault(); insertMention(person.name) }}
+                >
+                  <span className="text-base leading-none">{person.emoji}</span>
+                  <span className="flex-1">{person.name}</span>
+                </button>
+              ))}
+              {canCreate && (
+                <button
+                  className={cn("w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left",
+                    filteredPeople.length === mentionIdx && 'bg-accent')}
+                  onMouseDown={e => {
+                    e.preventDefault()
+                    const person = onCreatePerson(mentionFilter.trim())
+                    insertMention(person.name)
+                  }}
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Add <span className="text-foreground font-medium">{mentionFilter}</span></span>
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -1237,8 +1414,9 @@ function formatDate(ts: number): string {
 
 // ─── NoteEditor ───────────────────────────────────────────────────────────────
 
-function NoteEditor({ note, allTags, onChange, onDelete }: {
+function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson }: {
   note: Note; allTags: string[]; onChange: (patch: Partial<Note>) => void; onDelete: () => void
+  people: Person[]; onCreatePerson: (name: string) => Person
 }) {
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set())
@@ -1897,6 +2075,8 @@ function NoteEditor({ note, allTags, onChange, onDelete }: {
                 onDragSelectStart={startDragSelect}
                 onMouseEnterBlock={extendDragSelect}
                 onPasteLines={insertPastedLines}
+              people={people}
+              onCreatePerson={onCreatePerson}
               />
               )
             })}
@@ -2093,18 +2273,31 @@ export default function NotesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [graphOpen, setGraphOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [people, setPeople] = useState<Person[]>([])
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
     setNotes(loaded)
     if (loaded.length > 0) setActiveId(loaded[0].id)
+    setPeople(loadPeople())
     setMounted(true)
   }, [])
 
-  // Auto-save
+  // Auto-save notes
   useEffect(() => {
     if (mounted) saveNotes(notes)
   }, [notes, mounted])
+
+  // Auto-save people
+  useEffect(() => {
+    if (mounted) savePeople(people)
+  }, [people, mounted])
+
+  function createPerson(name: string): Person {
+    const person = mkPerson(name)
+    setPeople(prev => [...prev, person])
+    return person
+  }
 
   const filteredNotes = useMemo(() => {
     let result = notes
@@ -2222,6 +2415,8 @@ export default function NotesPage() {
                   allTags={allTags}
                   onChange={patch => updateNote(activeNote.id, patch)}
                   onDelete={() => deleteNote(activeNote.id)}
+                  people={people}
+                  onCreatePerson={createPerson}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
