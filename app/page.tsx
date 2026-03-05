@@ -3178,7 +3178,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote, onMoveFolder }: {
+function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote }: {
   notes: Note[]        // filtered notes (flat search/tag view)
   allNotes: Note[]     // all notes (for folder tree)
   activeId: string | null; search: string; onSearch: (q: string) => void
@@ -3192,10 +3192,8 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
   onMoveNote: (noteId: string, folderId: string | null) => void
-  onMoveFolder: (folderId: string, newParentId: string | null) => void
 }) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
-  const [folderCtxMenu, setFolderCtxMenu] = useState<{ x: number; y: number; folderId: string } | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
 
@@ -3212,22 +3210,11 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
     [folders, allNotes, useTreeView]
   )
 
-  // Helper: collect all descendant folder ids (including self) for cycle detection
-  function getDescendantIds(folderId: string): Set<string> {
-    const result = new Set<string>()
-    function walk(id: string) {
-      result.add(id)
-      folders.filter(f => f.parentId === id).forEach(f => walk(f.id))
-    }
-    walk(folderId)
-    return result
-  }
-
   function renderNoteItem(note: Note, depth: number) {
     return (
       <button key={note.id}
         onClick={() => onSelect(note.id)}
-        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }); setFolderCtxMenu(null) }}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         className={cn(
           "w-full text-left pr-2.5 py-2 rounded-lg flex items-start gap-2 group transition-colors",
@@ -3259,7 +3246,6 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
         <div
           style={{ paddingLeft: `${4 + depth * 14}px` }}
           className="flex items-center gap-0.5 group/folder pr-1 py-1 rounded-md hover:bg-background/50"
-          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setFolderCtxMenu({ x: e.clientX, y: e.clientY, folderId: folder.id }); setCtxMenu(null) }}
         >
           <button onClick={() => onToggleFolder(folder.id)} className="flex items-center gap-1 flex-1 min-w-0">
             <ChevronRight
@@ -3284,7 +3270,7 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
               <span className="text-sm font-medium truncate">{folder.name}</span>
             )}
           </button>
-          <div className="opacity-0 group-hover/folder:opacity-100 flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
               onClick={() => onCreateFolder('New Folder', folder.id)}
               title="New subfolder"
@@ -3516,55 +3502,6 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
         document.body
       )}
 
-      {/* Folder context menu — right-click folder → reparent it (same portal pattern) */}
-      {folderCtxMenu && createPortal((() => {
-        const excluded = getDescendantIds(folderCtxMenu.folderId)
-        const validTargets = folders.filter(f => !excluded.has(f.id))
-        const movingFolder = folders.find(f => f.id === folderCtxMenu.folderId)
-        return (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setFolderCtxMenu(null)} />
-            <div
-              className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[200px] text-sm"
-              style={{ left: folderCtxMenu.x, top: folderCtxMenu.y }}
-            >
-              <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Move "{movingFolder?.name}" to…
-              </div>
-              <button
-                onClick={() => { onMoveFolder(folderCtxMenu.folderId, null); setFolderCtxMenu(null) }}
-                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-              >
-                <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                Root (top level)
-              </button>
-              {validTargets.map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => { onMoveFolder(folderCtxMenu.folderId, f.id); setFolderCtxMenu(null) }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-                >
-                  <span className="flex-shrink-0">📁</span>
-                  <span className="truncate">{f.name}</span>
-                </button>
-              ))}
-              {validTargets.length === 0 && (
-                <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No valid targets</div>
-              )}
-              <div className="border-t mt-1 pt-1">
-                <button
-                  onClick={() => { onDeleteFolder(folderCtxMenu.folderId); setFolderCtxMenu(null) }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors text-muted-foreground"
-                >
-                  <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
-                  Delete folder
-                </button>
-              </div>
-            </div>
-          </>
-        )
-      })(), document.body)}
-
       {/* Footer */}
       <div className="p-3 border-t">
         <p className="text-[10px] text-muted-foreground/50 text-center">Locus Notes</p>
@@ -3792,24 +3729,6 @@ export default function NotesPage() {
     if (folderId) setExpandedFolders(prev => new Set([...prev, folderId]))
   }
 
-  function moveFolderToParent(folderId: string, newParentId: string | null) {
-    // Cycle detection: collect all descendants of folderId; newParentId must not be among them
-    function collectDescendants(id: string, allFolders: Folder[]): Set<string> {
-      const result = new Set<string>()
-      function walk(cur: string) {
-        result.add(cur)
-        allFolders.filter(f => f.parentId === cur).forEach(f => walk(f.id))
-      }
-      walk(id)
-      return result
-    }
-    const descendants = collectDescendants(folderId, folders)
-    if (newParentId !== null && descendants.has(newParentId)) return // would create cycle
-    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, parentId: newParentId } : f))
-    // Auto-expand the new parent so the moved folder is visible
-    if (newParentId) setExpandedFolders(prev => new Set([...prev, newParentId]))
-  }
-
   function toggleFolder(id: string) {
     setExpandedFolders(prev => {
       const next = new Set(prev)
@@ -3871,7 +3790,6 @@ export default function NotesPage() {
               onRenameFolder={renameFolder}
               onDeleteFolder={deleteFolder}
               onMoveNote={moveNoteToFolder}
-              onMoveFolder={moveFolderToParent}
             />
           </div>
         </div>
