@@ -3571,7 +3571,7 @@ export default function NotesPage() {
             {/* Drag-to-resize handle — sibling in the flex row, never clipped */}
             {graphOpen && (
               <div
-                className="flex-shrink-0 w-3 relative flex items-center justify-center cursor-col-resize group z-10 hover:bg-muted/40 transition-colors"
+                className="flex-shrink-0 w-4 relative flex items-center justify-center cursor-col-resize group z-10 border-l border-r border-border/40 bg-background hover:bg-muted/60 transition-colors"
                 onMouseDown={e => {
                   e.preventDefault()
                   graphResizingRef.current = true
@@ -3580,7 +3580,7 @@ export default function NotesPage() {
                   document.body.style.userSelect = 'none'
                 }}
               >
-                <div className="w-1 h-12 rounded-full bg-muted-foreground/30 group-hover:bg-primary/70 transition-colors duration-150" />
+                <GripVertical className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary transition-colors duration-150" />
               </div>
             )}
 
