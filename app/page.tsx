@@ -12,9 +12,11 @@ import {
   AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
   Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
   ChevronRight, BookOpen, Calendar, GripVertical,
-  User, Bold, Italic, Strikethrough, Palette, Underline
+  User, Bold, Italic, Strikethrough, Palette, Underline,
+  Maximize2, Minimize2
 } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
+import { useTheme } from "next-themes"
 import { useToast } from "@/components/ui/use-toast"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -354,9 +356,45 @@ function tickSim(nodes: GNode[], edges: GEdge[], w: number, h: number, alpha: nu
 
 // ─── GraphPanel ───────────────────────────────────────────────────────────────
 
-function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
+function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpanded, onToggleExpand }: {
   notes: Note[]; people: Person[]; activeNoteId: string | null; onSelectNote: (id: string) => void
+  isExpanded: boolean; onToggleExpand: () => void
 }) {
+  const { resolvedTheme } = useTheme()
+  const dark = resolvedTheme === 'dark'
+
+  // Theme-aware color tokens
+  const T = dark ? {
+    bg: '#0d1117', dot: '#161e2e',
+    cardFill: '#131929', cardActiveFill: '#0d1f38',
+    cardBorder: '#1e2d45', cardActiveBorder: '#3b82f6',
+    cardShadow: '#060c18', cardActiveShadow: '#1d3a6e',
+    edgeDefault: '#162030', edgeHover: '#264460', edgeActive: '#3b82f6',
+    tagFill: '#0f1520', tagActiveFill: '#0d1f38',
+    tagBorder: '#1a2a40', tagActiveBorder: '#3b82f6',
+    portDefault: '#1e2d45', portHover: '#3b82f6',
+    textNote: '#7a94b8', textNoteActive: '#93c5fd', textNoteHover: '#a8bedc',
+    textTag: '#4a6480', textTagActive: '#60a5fa', textTagHover: '#5a7a9a',
+    tooltip: 'rgba(13,17,27,0.92)', tooltipBorder: 'rgba(59,130,246,0.25)', tooltipText: '#7a94b8',
+    header: '#2a3f5a', ctrl: '#0f1520', ctrlBorder: '#1a2a40', ctrlText: '#2a3f5a',
+    ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#3b82f6',
+    empty: '#1a2a40',
+  } : {
+    bg: '#f4f6f9', dot: '#d1d9e6',
+    cardFill: '#ffffff', cardActiveFill: '#eff6ff',
+    cardBorder: '#dde3ec', cardActiveBorder: '#3b82f6',
+    cardShadow: '#94a3b8', cardActiveShadow: '#3b82f6',
+    edgeDefault: '#c5d0e0', edgeHover: '#93b4d4', edgeActive: '#3b82f6',
+    tagFill: '#ffffff', tagActiveFill: '#eff6ff',
+    tagBorder: '#dde3ec', tagActiveBorder: '#93c5fd',
+    portDefault: '#e2e8f0', portHover: '#3b82f6',
+    textNote: '#475569', textNoteActive: '#1e40af', textNoteHover: '#334155',
+    textTag: '#64748b', textTagActive: '#1d4ed8', textTagHover: '#3b82f6',
+    tooltip: 'rgba(255,255,255,0.95)', tooltipBorder: '#dde3ec', tooltipText: '#475569',
+    header: '#94a3b8', ctrl: '#ffffff', ctrlBorder: '#dde3ec', ctrlText: '#94a3b8',
+    ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#93c5fd',
+    empty: '#cbd5e1',
+  }
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 340, h: 500 })
   const nodesRef = useRef<GNode[]>([])
@@ -494,7 +532,7 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
     <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden select-none"
-      style={{ background: '#f4f6f9', cursor: hovered ? 'pointer' : dragRef.current ? 'grabbing' : 'grab' }}
+      style={{ background: T.bg, cursor: hovered ? 'pointer' : dragRef.current ? 'grabbing' : 'grab' }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -503,18 +541,15 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
     >
       <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
         <defs>
-          {/* Dot grid pattern */}
           <pattern id="g-dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="0.85" fill="#d1d9e6" />
+            <circle cx="1" cy="1" r="0.85" fill={T.dot} />
           </pattern>
-          {/* Card drop shadow */}
           <filter id="f-card" x="-15%" y="-30%" width="130%" height="160%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#94a3b8" floodOpacity="0.18" />
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={T.cardShadow} floodOpacity={dark ? '0.5' : '0.18'} />
           </filter>
           <filter id="f-card-active" x="-15%" y="-30%" width="130%" height="160%">
-            <feDropShadow dx="0" dy="3" stdDeviation="5" floodColor="#3b82f6" floodOpacity="0.22" />
+            <feDropShadow dx="0" dy="3" stdDeviation="5" floodColor={T.cardActiveShadow} floodOpacity="0.35" />
           </filter>
-          {/* Edge glow for active */}
           <filter id="f-eglow" x="-5%" y="-300%" width="110%" height="700%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" />
             <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
@@ -525,8 +560,7 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
           `}</style>
         </defs>
 
-        {/* Background */}
-        <rect width="100%" height="100%" fill="#f4f6f9" />
+        <rect width="100%" height="100%" fill={T.bg} />
         <rect width="100%" height="100%" fill="url(#g-dots)" />
 
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
@@ -542,14 +576,14 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
 
             if (isActive) return (
               <g key={i}>
-                <path d={d} fill="none" stroke="#3b82f6" strokeWidth={3.5} strokeOpacity={0.15} filter="url(#f-eglow)" />
-                <path d={d} fill="none" stroke="#3b82f6" strokeWidth={1.5} strokeOpacity={0.8}
+                <path d={d} fill="none" stroke={T.edgeActive} strokeWidth={3.5} strokeOpacity={0.2} filter="url(#f-eglow)" />
+                <path d={d} fill="none" stroke={T.edgeActive} strokeWidth={1.5} strokeOpacity={0.85}
                   strokeDasharray="5 4" className="gph-dash" />
               </g>
             )
             return (
               <path key={i} d={d} fill="none"
-                stroke={isHov ? '#93b4d4' : '#c5d0e0'}
+                stroke={isHov ? T.edgeHover : T.edgeDefault}
                 strokeWidth={isHov ? 1.5 : 1}
                 strokeOpacity={isHov ? 0.9 : 0.7}
               />
@@ -566,26 +600,22 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
 
             return (
               <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                {/* Pill body */}
                 <rect x={-TW} y={-TH} width={TW * 2} height={TH * 2} rx={TH}
-                  fill={isActive ? '#eff6ff' : isHov ? '#f8fafc' : '#ffffff'}
-                  stroke={isActive ? '#93c5fd' : isHov ? '#c5d0e0' : '#dde3ec'}
+                  fill={isActive ? T.tagActiveFill : T.tagFill}
+                  stroke={isActive ? T.tagActiveBorder : isHov ? T.edgeHover : T.tagBorder}
                   strokeWidth={isActive ? 1.5 : 1}
                   filter="url(#f-card)"
                 />
-                {/* Left port */}
                 <circle cx={-TW} cy={0} r={4}
-                  fill={isActive ? '#3b82f6' : isHov ? '#93c5fd' : '#c5d0e0'}
-                  stroke={isActive ? '#fff' : '#f1f5f9'} strokeWidth={1.5}
+                  fill={isActive ? T.edgeActive : isHov ? T.portHover : T.portDefault}
+                  stroke={T.cardFill} strokeWidth={1.5}
                 />
-                {/* Right port */}
                 <circle cx={TW} cy={0} r={4}
-                  fill={isActive ? '#3b82f6' : isHov ? '#93c5fd' : '#c5d0e0'}
-                  stroke={isActive ? '#fff' : '#f1f5f9'} strokeWidth={1.5}
+                  fill={isActive ? T.edgeActive : isHov ? T.portHover : T.portDefault}
+                  stroke={T.cardFill} strokeWidth={1.5}
                 />
-                {/* Label */}
                 <text textAnchor="middle" dominantBaseline="central" fontSize={8.5}
-                  fill={isActive ? '#1d4ed8' : isHov ? '#3b82f6' : '#64748b'}
+                  fill={isActive ? T.textTagActive : isHov ? T.textTagHover : T.textTag}
                   fontWeight={isActive ? '600' : '500'}
                   style={{ pointerEvents: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif', userSelect: 'none' }}
                 >
@@ -602,42 +632,36 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
 
             return (
               <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                {/* Card body */}
                 <rect x={-NW} y={-NH} width={NW * 2} height={NH * 2} rx={7}
-                  fill={isActive ? '#eff6ff' : '#ffffff'}
-                  stroke={isActive ? '#3b82f6' : isHov ? '#93b4d4' : '#dde3ec'}
+                  fill={isActive ? T.cardActiveFill : T.cardFill}
+                  stroke={isActive ? T.cardActiveBorder : isHov ? T.edgeHover : T.cardBorder}
                   strokeWidth={isActive ? 1.5 : 1}
                   filter={isActive ? 'url(#f-card-active)' : 'url(#f-card)'}
                 />
-                {/* Color accent bar on left */}
                 <rect x={-NW} y={-NH} width={5} height={NH * 2} rx={7}
                   fill={node.color} opacity={isActive ? 1 : isHov ? 0.85 : 0.7}
                 />
                 <rect x={-NW + 5} y={-NH} width={3} height={NH * 2} fill={node.color}
                   opacity={isActive ? 0.25 : 0.12}
                 />
-                {/* Left port */}
                 <circle cx={-NW} cy={0} r={5}
-                  fill={isActive ? node.color : isHov ? node.color : '#e2e8f0'}
-                  stroke="#ffffff" strokeWidth={2}
-                  opacity={isActive ? 1 : isHov ? 0.8 : 0.6}
+                  fill={isActive ? node.color : isHov ? node.color : T.portDefault}
+                  stroke={T.cardFill} strokeWidth={2}
+                  opacity={isActive ? 1 : isHov ? 0.85 : 0.65}
                 />
-                {/* Right port */}
                 <circle cx={NW} cy={0} r={5}
-                  fill={isActive ? node.color : isHov ? node.color : '#e2e8f0'}
-                  stroke="#ffffff" strokeWidth={2}
-                  opacity={isActive ? 1 : isHov ? 0.8 : 0.6}
+                  fill={isActive ? node.color : isHov ? node.color : T.portDefault}
+                  stroke={T.cardFill} strokeWidth={2}
+                  opacity={isActive ? 1 : isHov ? 0.85 : 0.65}
                 />
-                {/* Emoji */}
                 <text x={-NW + 22} textAnchor="middle" dominantBaseline="central"
                   fontSize={14} style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
                   {node.emoji}
                 </text>
-                {/* Title */}
                 <text x={-NW + 36} textAnchor="start" dominantBaseline="central"
                   fontSize={10.5}
-                  fill={isActive ? '#1e40af' : isHov ? '#334155' : '#475569'}
+                  fill={isActive ? T.textNoteActive : isHov ? T.textNoteHover : T.textNote}
                   fontWeight={isActive ? '600' : '500'}
                   style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}
                 >
@@ -653,18 +677,32 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
       {hoveredNode && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none" style={{ zIndex: 10 }}>
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-            style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid #dde3ec', color: '#475569', backdropFilter: 'blur(8px)', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
+            style={{ background: T.tooltip, border: `1px solid ${T.tooltipBorder}`, color: T.tooltipText, backdropFilter: 'blur(8px)', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
             {hoveredNode.type === 'note' && <span>{hoveredNode.emoji}</span>}
             <span>{hoveredNode.type === 'tag' ? `#${hoveredNode.label}` : hoveredNode.label}</span>
           </div>
         </div>
       )}
 
-      {/* ── Header ── */}
-      <div className="absolute top-3.5 left-3.5 flex items-center gap-1.5 pointer-events-none">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-        <span className="text-[9px] font-semibold tracking-[.16em] uppercase text-slate-400"
-          style={{ fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>Graph</span>
+      {/* ── Header + expand toggle ── */}
+      <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <span className="text-[9px] font-semibold tracking-[.16em] uppercase"
+            style={{ color: T.header, fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>Graph</span>
+        </div>
+        <button
+          className="pointer-events-auto w-6 h-6 rounded-md flex items-center justify-center transition-all"
+          style={{ background: T.ctrl, border: `1px solid ${T.ctrlBorder}`, color: T.ctrlText }}
+          onMouseEnter={e => { const el = e.currentTarget; el.style.color = T.ctrlHoverText; el.style.borderColor = T.ctrlHoverBorder }}
+          onMouseLeave={e => { const el = e.currentTarget; el.style.color = T.ctrlText; el.style.borderColor = T.ctrlBorder }}
+          onClick={e => { e.stopPropagation(); onToggleExpand() }}
+          title={isExpanded ? 'Reduce graph' : 'Expand graph'}
+        >
+          {isExpanded
+            ? <Minimize2 className="w-3 h-3" />
+            : <Maximize2 className="w-3 h-3" />}
+        </button>
       </div>
 
       {/* ── Zoom controls ── */}
@@ -676,9 +714,9 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
         ] as { label: string; fn: () => void }[]).map(({ label, fn }) => (
           <button key={label}
             className="w-6 h-6 rounded-md text-xs flex items-center justify-center transition-all shadow-sm"
-            style={{ background: '#ffffff', border: '1px solid #dde3ec', color: '#94a3b8' }}
-            onMouseEnter={e => { const el = e.currentTarget; el.style.color = '#3b82f6'; el.style.borderColor = '#93c5fd' }}
-            onMouseLeave={e => { const el = e.currentTarget; el.style.color = '#94a3b8'; el.style.borderColor = '#dde3ec' }}
+            style={{ background: T.ctrl, border: `1px solid ${T.ctrlBorder}`, color: T.ctrlText }}
+            onMouseEnter={e => { const el = e.currentTarget; el.style.color = T.ctrlHoverText; el.style.borderColor = T.ctrlHoverBorder }}
+            onMouseLeave={e => { const el = e.currentTarget; el.style.color = T.ctrlText; el.style.borderColor = T.ctrlBorder }}
             onClick={e => { e.stopPropagation(); fn() }}
           >{label}</button>
         ))}
@@ -687,9 +725,9 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote }: {
       {/* ── Empty state ── */}
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-          <Network className="w-7 h-7 text-slate-300" />
-          <span className="text-[10px] font-medium tracking-widest uppercase text-slate-300"
-            style={{ fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
+          <Network className="w-7 h-7" style={{ color: T.empty }} />
+          <span className="text-[10px] font-medium tracking-widest uppercase"
+            style={{ color: T.empty, fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
             Add tags to see connections
           </span>
         </div>
@@ -3270,6 +3308,7 @@ export default function NotesPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [graphOpen, setGraphOpen] = useState(true)
+  const [graphExpanded, setGraphExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [people, setPeople] = useState<Person[]>([])
   const [customObjectTypes, setCustomObjectTypes] = useState<ObjectType[]>([])
@@ -3504,15 +3543,17 @@ export default function NotesPage() {
 
             {/* Graph panel */}
             <div className={cn(
-              "flex-shrink-0 border-l transition-all duration-200 overflow-hidden",
-              graphOpen ? 'w-80' : 'w-0'
+              "flex-shrink-0 border-l transition-all duration-300 overflow-hidden",
+              !graphOpen ? 'w-0' : graphExpanded ? 'w-[580px]' : 'w-80'
             )}>
-              <div className="w-80 h-full">
+              <div className={cn("h-full transition-all duration-300", graphExpanded ? 'w-[580px]' : 'w-80')}>
                 <GraphPanel
                   notes={notes}
                   people={people}
                   activeNoteId={activeId}
                   onSelectNote={id => setActiveId(id)}
+                  isExpanded={graphExpanded}
+                  onToggleExpand={() => setGraphExpanded(p => !p)}
                 />
               </div>
             </div>
