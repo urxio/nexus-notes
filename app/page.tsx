@@ -3177,7 +3177,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote }: {
+function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote, onMoveFolder }: {
   notes: Note[]        // filtered notes (flat search/tag view)
   allNotes: Note[]     // all notes (for folder tree)
   activeId: string | null; search: string; onSearch: (q: string) => void
@@ -3191,11 +3191,14 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
   onMoveNote: (noteId: string, folderId: string | null) => void
+  onMoveFolder: (folderId: string, newParentId: string | null) => void
 }) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+  const [folderCtxMenu, setFolderCtxMenu] = useState<{ x: number; y: number; folderId: string } | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const ctxMenuRef = useRef<HTMLDivElement>(null)
+  const folderCtxMenuRef = useRef<HTMLDivElement>(null)
 
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
@@ -3210,10 +3213,7 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
     [folders, allNotes, useTreeView]
   )
 
-  // Close context menu on outside click — use ref.contains() check so that
-  // clicking INSIDE the menu (on a folder button) does NOT close it before
-  // the onClick handler fires. In React 18, e.stopPropagation() on a React
-  // synthetic event does not stop native document listeners.
+  // Close note context menu on outside click
   useEffect(() => {
     if (!ctxMenu) return
     function close(e: MouseEvent) {
@@ -3223,6 +3223,28 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [ctxMenu])
+
+  // Close folder context menu on outside click
+  useEffect(() => {
+    if (!folderCtxMenu) return
+    function close(e: MouseEvent) {
+      if (folderCtxMenuRef.current?.contains(e.target as Node)) return
+      setFolderCtxMenu(null)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [folderCtxMenu])
+
+  // Helper: collect all descendant folder ids (including self) for cycle detection
+  function getDescendantIds(folderId: string): Set<string> {
+    const result = new Set<string>()
+    function walk(id: string) {
+      result.add(id)
+      folders.filter(f => f.parentId === id).forEach(f => walk(f.id))
+    }
+    walk(folderId)
+    return result
+  }
 
   function renderNoteItem(note: Note, depth: number) {
     return (
@@ -3260,6 +3282,7 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
         <div
           style={{ paddingLeft: `${4 + depth * 14}px` }}
           className="flex items-center gap-0.5 group/folder pr-1 py-1 rounded-md hover:bg-background/50"
+          onContextMenu={e => { e.preventDefault(); setFolderCtxMenu({ x: e.clientX, y: e.clientY, folderId: folder.id }) }}
         >
           <button onClick={() => onToggleFolder(folder.id)} className="flex items-center gap-1 flex-1 min-w-0">
             <ChevronRight
@@ -3414,6 +3437,54 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
             )}
           </div>
         )}
+
+        {/* Folder context menu (right-click folder to reparent it) */}
+        {folderCtxMenu && (() => {
+          // Exclude self and all descendants to prevent cycles
+          const excluded = getDescendantIds(folderCtxMenu.folderId)
+          const validTargets = folders.filter(f => !excluded.has(f.id))
+          const movingFolder = folders.find(f => f.id === folderCtxMenu.folderId)
+          return (
+            <div
+              ref={folderCtxMenuRef}
+              className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[200px] text-sm"
+              style={{ left: folderCtxMenu.x, top: folderCtxMenu.y }}
+            >
+              <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Move "{movingFolder?.name}" to…
+              </div>
+              <button
+                onClick={() => { onMoveFolder(folderCtxMenu.folderId, null); setFolderCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                Root (top level)
+              </button>
+              {validTargets.map(folder => (
+                <button
+                  key={folder.id}
+                  onClick={() => { onMoveFolder(folderCtxMenu.folderId, folder.id); setFolderCtxMenu(null) }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+                >
+                  <span className="flex-shrink-0">📁</span>
+                  <span className="truncate">{folder.name}</span>
+                </button>
+              ))}
+              {validTargets.length === 0 && (
+                <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No valid targets</div>
+              )}
+              <div className="border-t mt-1 pt-1">
+                <button
+                  onClick={() => { onDeleteFolder(folderCtxMenu.folderId); setFolderCtxMenu(null) }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors text-muted-foreground"
+                >
+                  <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  Delete folder
+                </button>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Objects section — built-in types always visible, custom types when populated */}
         {(() => {
@@ -3733,6 +3804,24 @@ export default function NotesPage() {
     if (folderId) setExpandedFolders(prev => new Set([...prev, folderId]))
   }
 
+  function moveFolderToParent(folderId: string, newParentId: string | null) {
+    // Cycle detection: collect all descendants of folderId; newParentId must not be among them
+    function collectDescendants(id: string, allFolders: Folder[]): Set<string> {
+      const result = new Set<string>()
+      function walk(cur: string) {
+        result.add(cur)
+        allFolders.filter(f => f.parentId === cur).forEach(f => walk(f.id))
+      }
+      walk(id)
+      return result
+    }
+    const descendants = collectDescendants(folderId, folders)
+    if (newParentId !== null && descendants.has(newParentId)) return // would create cycle
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, parentId: newParentId } : f))
+    // Auto-expand the new parent so the moved folder is visible
+    if (newParentId) setExpandedFolders(prev => new Set([...prev, newParentId]))
+  }
+
   function toggleFolder(id: string) {
     setExpandedFolders(prev => {
       const next = new Set(prev)
@@ -3794,6 +3883,7 @@ export default function NotesPage() {
               onRenameFolder={renameFolder}
               onDeleteFolder={deleteFolder}
               onMoveNote={moveNoteToFolder}
+              onMoveFolder={moveFolderToParent}
             />
           </div>
         </div>
