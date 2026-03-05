@@ -3250,7 +3250,7 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
     return (
       <button key={note.id}
         onClick={() => onSelect(note.id)}
-        onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }); setFolderCtxMenu(null) }}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         className={cn(
           "w-full text-left pr-2.5 py-2 rounded-lg flex items-start gap-2 group transition-colors",
@@ -3282,7 +3282,7 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
         <div
           style={{ paddingLeft: `${4 + depth * 14}px` }}
           className="flex items-center gap-0.5 group/folder pr-1 py-1 rounded-md hover:bg-background/50"
-          onContextMenu={e => { e.preventDefault(); setFolderCtxMenu({ x: e.clientX, y: e.clientY, folderId: folder.id }) }}
+          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setFolderCtxMenu({ x: e.clientX, y: e.clientY, folderId: folder.id }); setCtxMenu(null) }}
         >
           <button onClick={() => onToggleFolder(folder.id)} className="flex items-center gap-1 flex-1 min-w-0">
             <ChevronRight
@@ -3407,85 +3407,6 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
           )}
         </div>
 
-        {/* Context menu (right-click on note to move to folder) */}
-        {ctxMenu && (
-          <div
-            ref={ctxMenuRef}
-            className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[190px] text-sm"
-            style={{ left: ctxMenu.x, top: ctxMenu.y }}
-          >
-            <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Move to…</div>
-            <button
-              onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
-              className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-            >
-              <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-              Root (no folder)
-            </button>
-            {folders.map(folder => (
-              <button
-                key={folder.id}
-                onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
-                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-              >
-                <span className="flex-shrink-0">📁</span>
-                <span className="truncate">{folder.name}</span>
-              </button>
-            ))}
-            {folders.length === 0 && (
-              <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No folders yet</div>
-            )}
-          </div>
-        )}
-
-        {/* Folder context menu (right-click folder to reparent it) */}
-        {folderCtxMenu && (() => {
-          // Exclude self and all descendants to prevent cycles
-          const excluded = getDescendantIds(folderCtxMenu.folderId)
-          const validTargets = folders.filter(f => !excluded.has(f.id))
-          const movingFolder = folders.find(f => f.id === folderCtxMenu.folderId)
-          return (
-            <div
-              ref={folderCtxMenuRef}
-              className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[200px] text-sm"
-              style={{ left: folderCtxMenu.x, top: folderCtxMenu.y }}
-            >
-              <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Move "{movingFolder?.name}" to…
-              </div>
-              <button
-                onClick={() => { onMoveFolder(folderCtxMenu.folderId, null); setFolderCtxMenu(null) }}
-                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-              >
-                <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                Root (top level)
-              </button>
-              {validTargets.map(folder => (
-                <button
-                  key={folder.id}
-                  onClick={() => { onMoveFolder(folderCtxMenu.folderId, folder.id); setFolderCtxMenu(null) }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-                >
-                  <span className="flex-shrink-0">📁</span>
-                  <span className="truncate">{folder.name}</span>
-                </button>
-              ))}
-              {validTargets.length === 0 && (
-                <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No valid targets</div>
-              )}
-              <div className="border-t mt-1 pt-1">
-                <button
-                  onClick={() => { onDeleteFolder(folderCtxMenu.folderId); setFolderCtxMenu(null) }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors text-muted-foreground"
-                >
-                  <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
-                  Delete folder
-                </button>
-              </div>
-            </div>
-          )
-        })()}
-
         {/* Objects section — built-in types always visible, custom types when populated */}
         {(() => {
           const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
@@ -3576,6 +3497,87 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
           </div>
         )}
       </ScrollArea>
+
+      {/* ── Context menus live OUTSIDE ScrollArea so position:fixed is anchored
+           to the true viewport, not a scroll-transformed container ── */}
+
+      {/* Note context menu — right-click note → move to folder */}
+      {ctxMenu && (
+        <div
+          ref={ctxMenuRef}
+          className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[190px] text-sm"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+        >
+          <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Move to…</div>
+          <button
+            onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
+            className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            Root (no folder)
+          </button>
+          {folders.map(folder => (
+            <button
+              key={folder.id}
+              onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
+              className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+            >
+              <span className="flex-shrink-0">📁</span>
+              <span className="truncate">{folder.name}</span>
+            </button>
+          ))}
+          {folders.length === 0 && (
+            <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No folders yet</div>
+          )}
+        </div>
+      )}
+
+      {/* Folder context menu — right-click folder → reparent it */}
+      {folderCtxMenu && (() => {
+        const excluded = getDescendantIds(folderCtxMenu.folderId)
+        const validTargets = folders.filter(f => !excluded.has(f.id))
+        const movingFolder = folders.find(f => f.id === folderCtxMenu.folderId)
+        return (
+          <div
+            ref={folderCtxMenuRef}
+            className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[200px] text-sm"
+            style={{ left: folderCtxMenu.x, top: folderCtxMenu.y }}
+          >
+            <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Move "{movingFolder?.name}" to…
+            </div>
+            <button
+              onClick={() => { onMoveFolder(folderCtxMenu.folderId, null); setFolderCtxMenu(null) }}
+              className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              Root (top level)
+            </button>
+            {validTargets.map(f => (
+              <button
+                key={f.id}
+                onClick={() => { onMoveFolder(folderCtxMenu.folderId, f.id); setFolderCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+              >
+                <span className="flex-shrink-0">📁</span>
+                <span className="truncate">{f.name}</span>
+              </button>
+            ))}
+            {validTargets.length === 0 && (
+              <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No valid targets</div>
+            )}
+            <div className="border-t mt-1 pt-1">
+              <button
+                onClick={() => { onDeleteFolder(folderCtxMenu.folderId); setFolderCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 hover:text-destructive flex items-center gap-2 transition-colors text-muted-foreground"
+              >
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                Delete folder
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Footer */}
       <div className="p-3 border-t">
