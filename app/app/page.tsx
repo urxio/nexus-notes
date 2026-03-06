@@ -2185,16 +2185,18 @@ function formatDate(ts: number): string {
 
 // ─── NoteEditor ───────────────────────────────────────────────────────────────
 
-function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, objectTypes, onCreateObjectType }: {
+function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, objectTypes, onCreateObjectType, sidebarOpen, onToggleSidebar }: {
   note: Note,
   allTags: string[],
   onChange: (noteId: string, updates: Partial<Note>) => void,
   onDelete: (noteId: string) => void,
   people: Person[],
-  onCreatePerson: (name: string) => Person,
+  onCreatePerson: (name: string, typeId?: string) => Person,
   onNavigateTo?: (noteId: string) => void,
   objectTypes: ObjectType[],
-  onCreateObjectType: (name: string, emoji: string) => ObjectType
+  onCreateObjectType: (name: string, emoji: string) => ObjectType,
+  sidebarOpen?: boolean,
+  onToggleSidebar?: () => void
 }) {
   const { toast } = useToast()
 
@@ -2961,6 +2963,12 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
       {/* Header bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {!sidebarOpen && onToggleSidebar && (
+            <button onClick={onToggleSidebar} title="Open sidebar"
+              className="mr-2 w-7 h-7 rounded-lg bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
+              <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
+            </button>
+          )}
           <BookOpen className="w-3.5 h-3.5" />
           <span>Notes</span>
           <ChevronRight className="w-3 h-3" />
@@ -4202,12 +4210,6 @@ export default function NotesPage() {
 
         {/* Col 3: Editor card + optional Graph card */}
         <div className="flex-1 min-w-0 flex gap-1 overflow-hidden relative">
-          {!sidebarOpen && (
-            <button onClick={() => setSidebarOpen(true)} title="Open sidebar"
-              className="absolute top-5 left-5 z-20 w-8 h-8 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
-              <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
-            </button>
-          )}
           <div className="flex-1 overflow-hidden rounded-2xl shadow-sm bg-white dark:bg-zinc-900">
             {activeNote ? (
               <NoteEditor
@@ -4221,9 +4223,17 @@ export default function NotesPage() {
                 onNavigateTo={id => setActiveId(id)}
                 objectTypes={customObjectTypes}
                 onCreateObjectType={createObjectType}
+                sidebarOpen={sidebarOpen}
+                onToggleSidebar={() => setSidebarOpen(true)}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-4">
+                {!sidebarOpen && (
+                  <button onClick={() => setSidebarOpen(true)} title="Open sidebar"
+                    className="absolute top-5 left-5 z-20 w-8 h-8 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
+                    <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
+                  </button>
+                )}
                 <div className="w-14 h-14 rounded-2xl bg-stone-50 dark:bg-zinc-800 flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-stone-200 dark:text-zinc-700" />
                 </div>
