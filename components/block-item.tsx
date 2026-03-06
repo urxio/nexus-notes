@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { Block, BlockType, Person, ObjectType } from "@/lib/types"
 import { SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, BLOCK_PLACEHOLDERS } from "@/lib/constants"
 import { BLOCK_ICONS } from "./block-icons"
+import { NoteIcon } from "./note-icon"
 import { DateBlock } from "./date-block"
 import { injectMentionsIntoHtml } from "@/lib/mentions"
 
@@ -1006,7 +1007,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                             i === mentionIdx && 'bg-accent')}
                                         onMouseDown={e => { e.preventDefault(); insertMention(person.name) }}
                                     >
-                                        <span className="text-base leading-none">{person.emoji}</span>
+                                        <NoteIcon iconName={person.emoji} className="w-4 h-4 text-muted-foreground/60 leading-none" />
                                         <span className="flex-1">{person.name}</span>
                                         {objType && <span className="text-[10px] text-muted-foreground/60">{objType.name}</span>}
                                     </button>
@@ -1029,7 +1030,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                                 insertMention(person.name)
                                             }}
                                         >
-                                            <span className="text-base leading-none">{objType.emoji}</span>
+                                            <NoteIcon iconName={objType.emoji} className="w-5 h-5 text-muted-foreground/60 leading-none" />
                                             <span className="text-muted-foreground flex-1">
                                                 <span className="text-foreground font-medium">{trimmedFilter}</span>
                                                 <span className="text-muted-foreground"> · {objType.name}</span>

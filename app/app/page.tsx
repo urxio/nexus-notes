@@ -185,7 +185,7 @@ export default function NotesPage() {
   }, [notes])
 
   function createNote() {
-    const note = { ...mkNote('📝'), folderId: selectedFolderId }
+    const note = { ...mkNote('FileText'), folderId: selectedFolderId }
     setNotes(prev => [note, ...prev])
     setActiveId(note.id)
     setSearch('')
@@ -236,7 +236,7 @@ export default function NotesPage() {
     const folder: Folder = {
       id: crypto.randomUUID(),
       name,
-      emoji: '📁',
+      emoji: 'Folder',
       parentId,
       createdAt: Date.now(),
     }

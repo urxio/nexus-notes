@@ -1,12 +1,12 @@
 import {
-    Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Network, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
+    Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Network, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite, User, Folder, CheckSquare, Calendar, FileText
 } from "lucide-react"
 import { BlockType, ObjectType, Note } from "./types"
 
 export const NOTE_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
 
 export const FUTURISTIC_ICONS: Record<string, React.ElementType> = {
-    Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Network, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
+    Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Network, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite, User, Folder, CheckSquare, Calendar, FileText
 }
 
 export const NOTE_ICON_KEYS = Object.keys(FUTURISTIC_ICONS)
@@ -44,13 +44,13 @@ export const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: stri
 ]
 
 export const BUILTIN_OBJECT_TYPES: ObjectType[] = [
-    { id: 'person', name: 'Person', emoji: '👤', isBuiltin: true },
-    { id: 'project', name: 'Project', emoji: '📁', isBuiltin: true },
-    { id: 'task', name: 'Task', emoji: '✅', isBuiltin: true },
-    { id: 'meeting', name: 'Meeting', emoji: '📅', isBuiltin: true },
+    { id: 'person', name: 'Person', emoji: 'User', isBuiltin: true },
+    { id: 'project', name: 'Project', emoji: 'Folder', isBuiltin: true },
+    { id: 'task', name: 'Task', emoji: 'CheckSquare', isBuiltin: true },
+    { id: 'meeting', name: 'Meeting', emoji: 'Calendar', isBuiltin: true },
 ]
 
-export const PERSON_EMOJIS = ['👤', '👩', '👨', '🧑', '👩‍💻', '👨‍💻', '🧑‍🎨', '👩‍🎨', '🧑‍🏫', '👩‍🏫', '👨‍🏫', '🧑‍⚕️']
+export const PERSON_EMOJIS = ['User']
 
 export const SEED_NOTES: Note[] = [
     {

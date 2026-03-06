@@ -95,7 +95,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                         <ChevronRight
                             className={cn("w-3 h-3 text-muted-foreground/60 transition-transform flex-shrink-0", isOpen && "rotate-90")}
                         />
-                        <span className="text-sm flex-shrink-0">📁</span>
+                        <NoteIcon iconName="Folder" className="w-3.5 h-3.5 text-muted-foreground/60 transition-transform flex-shrink-0" />
                         {isEditing ? (
                             <input
                                 autoFocus
@@ -233,7 +233,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                                 return (
                                     <div key={objType.id}>
                                         <div className="flex items-center gap-1.5 mb-1">
-                                            <span className="text-[11px] leading-none">{objType.emoji}</span>
+                                            <NoteIcon iconName={objType.emoji} className="text-[11px] leading-none text-muted-foreground" />
                                             <span className="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider flex-1">{objType.name}</span>
                                             {typeObjects.length > 0 && (
                                                 <span className="text-[10px] text-muted-foreground/40 tabular-nums">{typeObjects.length}</span>
@@ -251,7 +251,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                                                                 : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
                                                         )}
                                                     >
-                                                        <span className="text-sm leading-none flex-shrink-0">{person.emoji}</span>
+                                                        <NoteIcon iconName={person.emoji} className="w-4 h-4 text-muted-foreground/60 leading-none flex-shrink-0" />
                                                         <span className="truncate">{person.name}</span>
                                                     </button>
                                                     <button
@@ -338,7 +338,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                                 onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
                                 className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
                             >
-                                <span className="flex-shrink-0">📁</span>
+                                <NoteIcon iconName="Folder" className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
                                 <span className="truncate">{folder.name}</span>
                             </button>
                         ))}

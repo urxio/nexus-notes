@@ -1,10 +1,11 @@
 import React, { useState } from "react"
-import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, Folder as FolderIcon, User, CheckSquare, X, Hash, Network } from "lucide-react"
+import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { Folder, Person, ObjectType, Note } from "@/lib/types"
 import { BUILTIN_OBJECT_TYPES } from "@/lib/constants"
+import { NoteIcon } from "./note-icon"
 
 interface NavRailProps {
     folders: Folder[]
@@ -118,7 +119,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                             <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
                                                 isSelected ? "bg-orange-100 dark:bg-orange-950/50" : "bg-stone-100 dark:bg-zinc-700/60"
                                             )}>
-                                                <FolderIcon className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500 opacity-80" />
+                                                <NoteIcon iconName="Folder" className="w-3.5 h-3.5 text-blue-400 dark:text-blue-500 opacity-80" />
                                             </div>
                                             {isEditing ? (
                                                 <input autoFocus value={editingName}
@@ -175,10 +176,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                     return (
                                         <div key={objType.id}>
                                             <div className="flex items-center gap-1.5 px-1.5 py-1 mb-1 mt-1 bg-stone-100/80 dark:bg-zinc-800/50 rounded-md">
-                                                {objType.emoji === '👤' ? <User className="w-3.5 h-3.5 text-stone-500" /> :
-                                                    objType.emoji === '📁' ? <FolderIcon className="w-3.5 h-3.5 text-stone-500" /> :
-                                                        objType.emoji === '✅' ? <CheckSquare className="w-3.5 h-3.5 text-stone-500" /> :
-                                                            <span className="text-[11px]">{objType.emoji}</span>}
+                                                <NoteIcon iconName={objType.emoji} className="w-3.5 h-3.5 text-stone-500" />
                                                 <span className="font-mono font-medium text-[10px] uppercase tracking-[0.1em] text-stone-700 dark:text-zinc-300">{objType.name}</span>
                                             </div>
                                             <div className="space-y-0.5">
@@ -193,10 +191,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                                     : "text-stone-500 dark:text-zinc-400 hover:bg-white/70 dark:hover:bg-zinc-800/50"
                                                             )}
                                                         >
-                                                            {person.emoji === '👤' ? <User className="w-3 h-3 flex-shrink-0 opacity-70" /> :
-                                                                person.emoji === '📁' ? <FolderIcon className="w-3 h-3 flex-shrink-0 opacity-70" /> :
-                                                                    person.emoji === '✅' ? <CheckSquare className="w-3 h-3 flex-shrink-0 opacity-70" /> :
-                                                                        <span className="text-[11px] flex-shrink-0">{person.emoji}</span>}
+                                                            <NoteIcon iconName={person.emoji} className="w-3 h-3 flex-shrink-0 opacity-70" />
                                                             <span className="truncate">{person.name}</span>
                                                         </button>
                                                         <button onClick={() => onDeletePerson(person.id)}

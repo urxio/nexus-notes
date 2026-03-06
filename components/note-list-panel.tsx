@@ -141,7 +141,7 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                             <button key={folder.id}
                                 onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
                                 className="w-full text-left px-4 py-2 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-stone-600 dark:text-zinc-400 transition-colors">
-                                <span className="text-[11px] flex-shrink-0">📁</span>
+                                <NoteIcon iconName="Folder" className="w-3 h-3 text-[11px] flex-shrink-0 text-muted-foreground" />
                                 <span className="truncate">{folder.name}</span>
                             </button>
                         ))}

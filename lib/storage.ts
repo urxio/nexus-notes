@@ -85,7 +85,7 @@ export function saveNotes(notes: Note[]) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)) } catch { }
 }
 
-export function mkNote(emoji: string = 'file'): Note {
+export function mkNote(emoji: string = 'FileText'): Note {
     return {
         id: crypto.randomUUID(),
         title: 'Untitled',
