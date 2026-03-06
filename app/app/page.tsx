@@ -1234,6 +1234,15 @@ function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, 
   }
 
   function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    const items = Array.from(e.clipboardData.items)
+    const hasImage = items.some(item => item.type.startsWith('image/'))
+    const html = e.clipboardData.getData('text/html')
+
+    // Allow native image pasting
+    if (hasImage || (html && html.includes('<img'))) {
+      return
+    }
+
     e.preventDefault()
     const plain = e.clipboardData.getData('text/plain')
     if (!plain) return
