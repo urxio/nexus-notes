@@ -3928,7 +3928,7 @@ export default function NotesPage() {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
-  const [graphOpen, setGraphOpen] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(true)
   const [graphWidth, setGraphWidth] = useState(320)
   const graphResizingRef = useRef(false)
   const graphResizeStartRef = useRef({ x: 0, w: 320 })
