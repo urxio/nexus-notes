@@ -3176,7 +3176,368 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
   )
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+// ─── Nav Rail (Column 1) ─────────────────────────────────────────────────────
+
+function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, onDeletePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes }: {
+  folders: Folder[]
+  selectedFolderId: string | null
+  onSelectFolder: (id: string | null) => void
+  people: Person[]
+  objectTypes: ObjectType[]
+  onDeletePerson: (id: string) => void
+  onCreateFolder: (name?: string) => void
+  onDeleteFolder: (id: string) => void
+  onRenameFolder: (id: string, name: string) => void
+  onCreate: () => void
+  activeId: string | null
+  onSelect: (id: string) => void
+  allTags: string[]
+  activeTag: string | null
+  onTagFilter: (tag: string | null) => void
+  graphOpen: boolean
+  onToggleGraph: () => void
+  notes: Note[]
+}) {
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
+  const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
+
+  return (
+    <div className="flex flex-col h-full border-r border-stone-200 dark:border-zinc-800 bg-stone-100 dark:bg-zinc-950">
+      {/* Logo row */}
+      <div className="px-4 py-3 border-b border-stone-200 dark:border-zinc-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-orange-600 flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="font-semibold text-[13px] text-stone-800 dark:text-zinc-100 tracking-tight">Locus</span>
+        </div>
+        <button onClick={onCreate} title="New note"
+          className="w-6 h-6 rounded-md bg-orange-600 hover:bg-orange-700 flex items-center justify-center transition-colors">
+          <Plus className="w-3.5 h-3.5 text-white" />
+        </button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="py-2 px-2">
+          {/* All Notes */}
+          <button
+            onClick={() => { onSelectFolder(null); onTagFilter(null) }}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors text-left mb-0.5",
+              selectedFolderId === null && !activeTag
+                ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-100 font-medium shadow-sm"
+                : "text-stone-500 dark:text-zinc-400 hover:bg-stone-200/60 dark:hover:bg-zinc-800/60 hover:text-stone-800 dark:hover:text-zinc-200"
+            )}
+          >
+            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="flex-1">All Notes</span>
+            <span className="font-mono text-[9px] text-stone-300 dark:text-zinc-700">{notes.length}</span>
+          </button>
+
+          {/* Folders section */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between px-2.5 mb-1">
+              <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-stone-400 dark:text-zinc-600">Pages</span>
+              <button onClick={() => onCreateFolder()} title="New folder"
+                className="text-stone-300 hover:text-orange-600 dark:text-zinc-700 dark:hover:text-orange-500 transition-colors">
+                <FolderPlus className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="space-y-0.5">
+              {folders.filter(f => f.parentId === null).map(folder => {
+                const count = notes.filter(n => (n.folderId ?? null) === folder.id).length
+                const isSelected = selectedFolderId === folder.id
+                const isEditing = editingFolderId === folder.id
+                return (
+                  <div key={folder.id} className="group/folder flex items-center">
+                    <button
+                      onClick={() => { onSelectFolder(folder.id); onTagFilter(null) }}
+                      className={cn(
+                        "flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors text-left",
+                        isSelected
+                          ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-100 font-medium shadow-sm"
+                          : "text-stone-500 dark:text-zinc-400 hover:bg-stone-200/60 dark:hover:bg-zinc-800/60 hover:text-stone-800 dark:hover:text-zinc-200"
+                      )}
+                    >
+                      <span className="text-[11px] flex-shrink-0">📁</span>
+                      {isEditing ? (
+                        <input autoFocus value={editingName}
+                          onChange={e => setEditingName(e.target.value)}
+                          onBlur={() => { onRenameFolder(folder.id, editingName || folder.name); setEditingFolderId(null) }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { onRenameFolder(folder.id, editingName || folder.name); setEditingFolderId(null) }
+                            if (e.key === 'Escape') setEditingFolderId(null)
+                            e.stopPropagation()
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          className="flex-1 min-w-0 text-[13px] bg-transparent border-b border-orange-500 outline-none"
+                        />
+                      ) : (
+                        <span className="truncate flex-1">{folder.name}</span>
+                      )}
+                      {count > 0 && !isEditing && (
+                        <span className="font-mono text-[9px] text-stone-300 dark:text-zinc-700 flex-shrink-0">{count}</span>
+                      )}
+                    </button>
+                    <div className="flex opacity-0 group-hover/folder:opacity-100 transition-opacity flex-shrink-0">
+                      <button onClick={() => { setEditingFolderId(folder.id); setEditingName(folder.name) }}
+                        className="p-1 text-stone-300 hover:text-stone-600 dark:text-zinc-700 dark:hover:text-zinc-300 transition-colors">
+                        <Pencil className="w-2.5 h-2.5" />
+                      </button>
+                      <button onClick={() => onDeleteFolder(folder.id)}
+                        className="p-1 text-stone-300 hover:text-red-500 dark:text-zinc-700 dark:hover:text-red-400 transition-colors">
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {folders.length === 0 && (
+                <button onClick={() => onCreateFolder()}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] text-stone-300 dark:text-zinc-700 hover:text-orange-600 dark:hover:text-orange-500 hover:bg-stone-200/40 transition-colors">
+                  <Plus className="w-3 h-3" />
+                  New folder
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Objects section */}
+          {visibleTypes.length > 0 && (
+            <div className="mt-5">
+              <div className="px-2.5 mb-1">
+                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-stone-400 dark:text-zinc-600">Objects</span>
+              </div>
+              <div className="space-y-3">
+                {visibleTypes.map(objType => {
+                  const typeObjects = people.filter(p => (p.typeId ?? 'person') === objType.id)
+                  return (
+                    <div key={objType.id}>
+                      <div className="flex items-center gap-1.5 px-2.5 mb-0.5">
+                        <span className="text-[10px]">{objType.emoji}</span>
+                        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-stone-400 dark:text-zinc-600">{objType.name}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {typeObjects.map(person => (
+                          <div key={person.id} className="group/person flex items-center">
+                            <button
+                              onClick={() => person.noteId && onSelect(person.noteId)}
+                              className={cn(
+                                "flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors text-left",
+                                person.noteId && activeId === person.noteId
+                                  ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-100 font-medium shadow-sm"
+                                  : "text-stone-500 dark:text-zinc-400 hover:bg-stone-200/60 dark:hover:bg-zinc-800/60 hover:text-stone-800 dark:hover:text-zinc-200"
+                              )}
+                            >
+                              <span className="text-[11px] flex-shrink-0">{person.emoji}</span>
+                              <span className="truncate">{person.name}</span>
+                            </button>
+                            <button onClick={() => onDeletePerson(person.id)}
+                              className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 text-stone-300 hover:text-red-500 dark:text-zinc-700 dark:hover:text-red-400 flex-shrink-0">
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                        {typeObjects.length === 0 && (
+                          <p className="px-2.5 text-[11px] text-stone-300 dark:text-zinc-700 italic">No {objType.name.toLowerCase()}s yet</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Tags section */}
+          {allTags.length > 0 && (
+            <div className="mt-5">
+              <div className="flex items-center justify-between px-2.5 mb-1">
+                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-stone-400 dark:text-zinc-600">Tags</span>
+                {activeTag && (
+                  <button onClick={() => onTagFilter(null)} className="font-mono text-[9px] text-orange-600 hover:underline">clear</button>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {allTags.map(tag => (
+                  <button key={tag}
+                    onClick={() => { onTagFilter(activeTag === tag ? null : tag); onSelectFolder(null) }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors text-left",
+                      activeTag === tag
+                        ? "bg-white dark:bg-zinc-800 text-stone-900 dark:text-zinc-100 font-medium shadow-sm"
+                        : "text-stone-500 dark:text-zinc-400 hover:bg-stone-200/60 dark:hover:bg-zinc-800/60"
+                    )}
+                  >
+                    <Hash className="w-3 h-3 flex-shrink-0 text-stone-300 dark:text-zinc-700" />
+                    <span className="font-mono text-[12px] truncate">{tag}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="px-3 py-2 border-t border-stone-200 dark:border-zinc-800 flex items-center justify-between">
+        <ThemeSwitcher />
+        <button onClick={onToggleGraph}
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider transition-colors",
+            graphOpen
+              ? "text-orange-600 bg-orange-50 dark:bg-orange-950/20 dark:text-orange-400"
+              : "text-stone-400 dark:text-zinc-600 hover:text-stone-600 dark:hover:text-zinc-400 hover:bg-stone-200/50"
+          )}
+        >
+          <Network className="w-3 h-3" />
+          Graph
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Note List Panel (Column 2) ──────────────────────────────────────────────
+
+function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote }: {
+  notes: Note[]
+  folders: Folder[]
+  selectedFolderId: string | null
+  activeTag: string | null
+  activeId: string | null
+  onSelect: (id: string) => void
+  onCreate: () => void
+  search: string
+  onSearch: (q: string) => void
+  onMoveNote: (noteId: string, folderId: string | null) => void
+}) {
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+
+  const label = selectedFolderId
+    ? (folders.find(f => f.id === selectedFolderId)?.name ?? 'Folder')
+    : activeTag ? `#${activeTag}` : 'All Notes'
+
+  function formatDate(ts: number): string {
+    const diff = Date.now() - ts
+    if (diff < 60000) return 'now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
+    if (diff < 604800000) return new Date(ts).toLocaleDateString('en', { weekday: 'short' })
+    return new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  }
+
+  function getPreview(note: Note): string {
+    for (const block of note.blocks) {
+      if (block.type !== 'divider' && block.content.trim()) return block.content.trim()
+    }
+    return ''
+  }
+
+  return (
+    <div className="flex flex-col h-full border-r border-stone-200 dark:border-zinc-800 bg-stone-50 dark:bg-zinc-900">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-stone-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-stone-400 dark:text-zinc-500 truncate">{label}</span>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+            <span className="font-mono text-[10px] text-stone-300 dark:text-zinc-700">{notes.length}</span>
+            <button onClick={onCreate} title="New note"
+              className="w-5 h-5 rounded-sm bg-orange-600 hover:bg-orange-700 flex items-center justify-center transition-colors">
+              <Plus className="w-3 h-3 text-white" />
+            </button>
+          </div>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-stone-300 dark:text-zinc-600" />
+          <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search…"
+            className="w-full pl-7 pr-3 py-1.5 rounded-md bg-stone-100 dark:bg-zinc-800 text-[12px] text-stone-700 dark:text-zinc-300 placeholder-stone-300 dark:placeholder-zinc-600 border border-stone-200 dark:border-zinc-700 outline-none focus:border-stone-400 dark:focus:border-zinc-500 transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Note list */}
+      <ScrollArea className="flex-1">
+        {notes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <FileText className="w-8 h-8 text-stone-200 dark:text-zinc-800" />
+            <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-stone-300 dark:text-zinc-700">No notes</p>
+          </div>
+        ) : notes.map(note => {
+          const isActive = note.id === activeId
+          const preview = getPreview(note)
+          return (
+            <button key={note.id}
+              onClick={() => onSelect(note.id)}
+              onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
+              className={cn(
+                "w-full text-left px-4 py-3 border-b border-stone-100 dark:border-zinc-800/50 transition-all relative",
+                isActive ? "bg-white dark:bg-zinc-800" : "hover:bg-white/60 dark:hover:bg-zinc-800/40"
+              )}
+            >
+              {isActive && <div className="absolute left-0 top-3 bottom-3 w-[2px] bg-orange-600 rounded-r-full" />}
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm leading-none flex-shrink-0">{note.emoji}</span>
+                  <span className={cn(
+                    "text-[13px] leading-snug truncate",
+                    isActive ? "font-semibold text-stone-900 dark:text-zinc-100" : "font-medium text-stone-700 dark:text-zinc-300"
+                  )}>
+                    {note.title || 'Untitled'}
+                  </span>
+                </div>
+                <span className="font-mono text-[9px] text-stone-300 dark:text-zinc-700 flex-shrink-0 mt-0.5">{formatDate(note.updatedAt)}</span>
+              </div>
+              {preview && (
+                <p className="text-[11px] text-stone-400 dark:text-zinc-600 line-clamp-2 leading-relaxed pl-[22px]">{preview}</p>
+              )}
+              {note.tags.length > 0 && (
+                <div className="flex gap-2 mt-1 pl-[22px]">
+                  {note.tags.slice(0, 3).map(tag => (
+                    <span key={tag} className="font-mono text-[9px] text-stone-300 dark:text-zinc-700">#{tag}</span>
+                  ))}
+                  {note.tags.length > 3 && <span className="font-mono text-[9px] text-stone-300 dark:text-zinc-700">+{note.tags.length - 3}</span>}
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </ScrollArea>
+
+      {/* Context menu — move note to folder */}
+      {ctxMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
+          <div className="fixed z-50 bg-white dark:bg-zinc-900 border border-stone-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 min-w-[200px] text-sm"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+            <div className="px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-stone-400 dark:text-zinc-600 border-b border-stone-100 dark:border-zinc-800 mb-1">
+              Move to folder
+            </div>
+            <button onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-stone-600 dark:text-zinc-400 transition-colors">
+              <FileText className="w-3.5 h-3.5 text-stone-300 flex-shrink-0" />
+              Root (no folder)
+            </button>
+            {folders.map(folder => (
+              <button key={folder.id}
+                onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-stone-600 dark:text-zinc-400 transition-colors">
+                <span className="text-[11px] flex-shrink-0">📁</span>
+                <span className="truncate">{folder.name}</span>
+              </button>
+            ))}
+            {folders.length === 0 && <p className="px-3 py-2 text-[11px] text-stone-300 italic">No folders yet</p>}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ─── Sidebar (legacy — superseded by NavRail + NoteListPanel) ─────────────────
 
 function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote }: {
   notes: Note[]        // filtered notes (flat search/tag view)
@@ -3517,8 +3878,8 @@ export default function NotesPage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [graphOpen, setGraphOpen] = useState(true)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [graphOpen, setGraphOpen] = useState(false)
   const [graphWidth, setGraphWidth] = useState(320)
   const graphResizingRef = useRef(false)
   const graphResizeStartRef = useRef({ x: 0, w: 320 })
@@ -3526,8 +3887,6 @@ export default function NotesPage() {
   const [people, setPeople] = useState<Person[]>([])
   const [customObjectTypes, setCustomObjectTypes] = useState<ObjectType[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
@@ -3618,9 +3977,13 @@ export default function NotesPage() {
     return person
   }
 
-  const filteredNotes = useMemo(() => {
+  const panelNotes = useMemo(() => {
     let result = notes
-    if (activeTag) result = result.filter(n => n.tags.includes(activeTag))
+    if (selectedFolderId !== null) {
+      result = result.filter(n => (n.folderId ?? null) === selectedFolderId)
+    } else if (activeTag) {
+      result = result.filter(n => n.tags.includes(activeTag))
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(n =>
@@ -3629,8 +3992,8 @@ export default function NotesPage() {
         n.tags.some(t => t.includes(q))
       )
     }
-    return result
-  }, [notes, search, activeTag])
+    return [...result].sort((a, b) => b.updatedAt - a.updatedAt)
+  }, [notes, selectedFolderId, activeTag, search])
 
   const activeNote = notes.find(n => n.id === activeId) ?? null
 
@@ -3641,7 +4004,7 @@ export default function NotesPage() {
   }, [notes])
 
   function createNote() {
-    const note = mkNote()
+    const note = { ...mkNote(), folderId: selectedFolderId }
     setNotes(prev => [note, ...prev])
     setActiveId(note.id)
     setSearch('')
@@ -3697,7 +4060,6 @@ export default function NotesPage() {
       createdAt: Date.now(),
     }
     setFolders(prev => [...prev, folder])
-    setExpandedFolders(prev => new Set([...prev, folder.id]))
   }
 
   function renameFolder(id: string, name: string) {
@@ -3716,26 +4078,10 @@ export default function NotesPage() {
       n.folderId && idsToDelete.includes(n.folderId) ? { ...n, folderId: null } : n
     ))
     setFolders(prev => prev.filter(f => !idsToDelete.includes(f.id)))
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      idsToDelete.forEach(fid => next.delete(fid))
-      return next
-    })
   }
 
   function moveNoteToFolder(noteId: string, folderId: string | null) {
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, folderId } : n))
-    // Auto-expand the target folder so the user can immediately see the moved note
-    if (folderId) setExpandedFolders(prev => new Set([...prev, folderId]))
-  }
-
-  function toggleFolder(id: string) {
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   }
 
   if (!mounted) {
@@ -3748,106 +4094,84 @@ export default function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden">
 
-        {/* Sidebar toggle (mobile/collapsed) */}
-        <button
-          className={cn(
-            "fixed left-0 top-1/2 -translate-y-1/2 z-50 w-5 h-12 bg-border/60 hover:bg-muted rounded-r-md flex items-center justify-center transition-all",
-            sidebarOpen ? 'left-[240px]' : 'left-0'
-          )}
-          onClick={() => setSidebarOpen(p => !p)}
-        >
-          {sidebarOpen
-            ? <PanelLeftClose className="w-3 h-3 text-muted-foreground" />
-            : <PanelLeftOpen className="w-3 h-3 text-muted-foreground" />}
-        </button>
-
-        {/* Sidebar */}
-        <div className={cn(
-          "flex-shrink-0 transition-all duration-200 overflow-hidden",
-          sidebarOpen ? 'w-60' : 'w-0'
-        )}>
-          <div className="w-60 h-full">
-            <Sidebar
-              notes={filteredNotes}
-              allNotes={notes}
-              activeId={activeId}
-              search={search}
-              onSearch={setSearch}
-              onSelect={id => { setActiveId(id); setSearch('') }}
-              onCreate={createNote}
-              activeTag={activeTag}
-              onTagFilter={setActiveTag}
-              people={people}
-              onDeletePerson={deletePerson}
-              objectTypes={customObjectTypes}
-              onCreateObjectType={createObjectType}
-              folders={folders}
-              expandedFolders={expandedFolders}
-              onToggleFolder={toggleFolder}
-              onCreateFolder={createFolder}
-              onRenameFolder={renameFolder}
-              onDeleteFolder={deleteFolder}
-              onMoveNote={moveNoteToFolder}
-            />
-          </div>
+        {/* Col 1: Nav Rail */}
+        <div className="w-[220px] flex-shrink-0">
+          <NavRail
+            folders={folders}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={setSelectedFolderId}
+            people={people}
+            objectTypes={customObjectTypes}
+            onDeletePerson={deletePerson}
+            onCreateFolder={createFolder}
+            onDeleteFolder={deleteFolder}
+            onRenameFolder={renameFolder}
+            onCreate={createNote}
+            activeId={activeId}
+            onSelect={id => setActiveId(id)}
+            allTags={allTags}
+            activeTag={activeTag}
+            onTagFilter={setActiveTag}
+            graphOpen={graphOpen}
+            onToggleGraph={() => setGraphOpen(p => !p)}
+            notes={notes}
+          />
         </div>
 
-        {/* Editor */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {/* Top toolbar */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/95 backdrop-blur-sm">
-            <div className="flex items-center gap-2 ml-auto">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant={graphOpen ? 'secondary' : 'ghost'} size="sm"
-                    className="h-7 gap-1.5 text-xs"
-                    onClick={() => setGraphOpen(p => !p)}>
-                    <Network className="w-3.5 h-3.5" />
-                    Graph
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Toggle tag network graph</TooltipContent>
-              </Tooltip>
-              <ThemeSwitcher />
-            </div>
+        {/* Col 2: Note List Panel */}
+        <div className="w-[280px] flex-shrink-0">
+          <NoteListPanel
+            notes={panelNotes}
+            folders={folders}
+            selectedFolderId={selectedFolderId}
+            activeTag={activeTag}
+            activeId={activeId}
+            onSelect={id => setActiveId(id)}
+            onCreate={createNote}
+            search={search}
+            onSearch={setSearch}
+            onMoveNote={moveNoteToFolder}
+          />
+        </div>
+
+        {/* Col 3: Editor + optional Graph */}
+        <div className="flex-1 min-w-0 flex overflow-hidden">
+          <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950">
+            {activeNote ? (
+              <NoteEditor
+                key={activeNote.id}
+                note={activeNote}
+                allTags={allTags}
+                onChange={updateNote}
+                onDelete={deleteNote}
+                people={people}
+                onCreatePerson={createPerson}
+                onNavigateTo={id => setActiveId(id)}
+                objectTypes={customObjectTypes}
+                onCreateObjectType={createObjectType}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4">
+                <BookOpen className="w-10 h-10 text-stone-200 dark:text-zinc-800" />
+                <div className="text-center">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-stone-300 dark:text-zinc-700">No page selected</p>
+                  <p className="text-[13px] mt-1 text-stone-300 dark:text-zinc-700">Select a note or create a new one</p>
+                </div>
+                <button onClick={createNote}
+                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-orange-600 hover:bg-orange-700 text-white text-[13px] transition-colors">
+                  <Plus className="w-4 h-4" /> New note
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-1 overflow-hidden">
-            {/* Note editor */}
-            <div className="flex-1 overflow-hidden">
-              {activeNote ? (
-                <NoteEditor
-                  key={activeNote.id}
-                  note={activeNote}
-                  allTags={allTags}
-                  onChange={updateNote}
-                  onDelete={deleteNote}
-                  people={people}
-                  onCreatePerson={createPerson}
-                  onNavigateTo={id => setActiveId(id)}
-                  objectTypes={customObjectTypes}
-                  onCreateObjectType={createObjectType}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                  <BookOpen className="w-12 h-12 opacity-20" />
-                  <div className="text-center">
-                    <p className="font-medium">No note selected</p>
-                    <p className="text-sm mt-1 opacity-60">Select a note from the sidebar or create a new one</p>
-                  </div>
-                  <Button onClick={createNote} size="sm" className="gap-2">
-                    <Plus className="w-4 h-4" /> New note
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Drag-to-resize handle — sibling in the flex row, never clipped */}
-            {graphOpen && (
+          {/* Graph: drag-resize handle + panel */}
+          {graphOpen && (
+            <>
               <div
-                className="flex-shrink-0 w-4 relative flex items-center justify-center cursor-col-resize group z-10 border-l border-r border-border/40 bg-background hover:bg-muted/60 transition-colors"
+                className="flex-shrink-0 w-4 relative flex items-center justify-center cursor-col-resize group z-10 border-l border-r border-stone-200 dark:border-zinc-800 bg-stone-50 dark:bg-zinc-900 hover:bg-stone-100 dark:hover:bg-zinc-800 transition-colors"
                 onMouseDown={e => {
                   e.preventDefault()
                   graphResizingRef.current = true
@@ -3856,27 +4180,23 @@ export default function NotesPage() {
                   document.body.style.userSelect = 'none'
                 }}
               >
-                <GripVertical className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary transition-colors duration-150" />
+                <GripVertical className="w-3 h-3 text-stone-300 dark:text-zinc-700 group-hover:text-orange-600 transition-colors" />
               </div>
-            )}
-
-            {/* Graph panel */}
-            <div
-              className="relative flex-shrink-0 h-full overflow-hidden"
-              style={{ width: graphOpen ? graphWidth : 0, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}
-            >
-              <div className="w-full h-full">
-                <GraphPanel
-                  notes={notes}
-                  people={people}
-                  activeNoteId={activeId}
-                  onSelectNote={id => setActiveId(id)}
-                  isExpanded={graphWidth > 420}
-                  onToggleExpand={() => setGraphWidth(w => w > 420 ? 320 : 580)}
-                />
+              <div className="relative flex-shrink-0 h-full overflow-hidden"
+                style={{ width: graphWidth, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}>
+                <div className="w-full h-full">
+                  <GraphPanel
+                    notes={notes}
+                    people={people}
+                    activeNoteId={activeId}
+                    onSelectNote={id => setActiveId(id)}
+                    isExpanded={graphWidth > 420}
+                    onToggleExpand={() => setGraphWidth(w => w > 420 ? 320 : 580)}
+                  />
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </TooltipProvider>
