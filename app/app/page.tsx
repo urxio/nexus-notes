@@ -3191,7 +3191,7 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
 // ─── Nav Rail (Column 1) ─────────────────────────────────────────────────────
 
-function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, onDeletePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes }: {
+function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, onDeletePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar }: {
   folders: Folder[]
   selectedFolderId: string | null
   onSelectFolder: (id: string | null) => void
@@ -3210,6 +3210,7 @@ function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectType
   graphOpen: boolean
   onToggleGraph: () => void
   notes: Note[]
+  onToggleSidebar?: () => void
 }) {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -3228,10 +3229,18 @@ function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectType
               <p className="text-[10px] text-stone-400 dark:text-zinc-600 mt-0.5">Notes</p>
             </div>
           </div>
-          <button onClick={onCreate} title="New note"
-            className="w-7 h-7 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-orange-100 dark:hover:bg-zinc-700 flex items-center justify-center transition-all group">
-            <Plus className="w-3.5 h-3.5 text-stone-400 dark:text-zinc-500 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onToggleSidebar && (
+              <button onClick={onToggleSidebar} title="Close sidebar"
+                className="w-7 h-7 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all group">
+                <PanelLeftClose className="w-3.5 h-3.5 text-stone-400 dark:text-zinc-500 transition-colors" />
+              </button>
+            )}
+            <button onClick={onCreate} title="New note"
+              className="w-7 h-7 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-orange-100 dark:hover:bg-zinc-700 flex items-center justify-center transition-all group">
+              <Plus className="w-3.5 h-3.5 text-stone-400 dark:text-zinc-500 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3936,6 +3945,7 @@ export default function NotesPage() {
   const [people, setPeople] = useState<Person[]>([])
   const [customObjectTypes, setCustomObjectTypes] = useState<ObjectType[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
@@ -4145,48 +4155,59 @@ export default function NotesPage() {
     <TooltipProvider delayDuration={400}>
       <div className="flex h-screen overflow-hidden bg-[#EEEDEA] dark:bg-zinc-950 p-3 gap-3">
 
-        {/* Col 1: Nav Rail card */}
-        <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
-          <NavRail
-            folders={folders}
-            selectedFolderId={selectedFolderId}
-            onSelectFolder={setSelectedFolderId}
-            people={people}
-            objectTypes={customObjectTypes}
-            onDeletePerson={deletePerson}
-            onCreateFolder={createFolder}
-            onDeleteFolder={deleteFolder}
-            onRenameFolder={renameFolder}
-            onCreate={createNote}
-            activeId={activeId}
-            onSelect={id => setActiveId(id)}
-            allTags={allTags}
-            activeTag={activeTag}
-            onTagFilter={setActiveTag}
-            graphOpen={graphOpen}
-            onToggleGraph={() => setGraphOpen(p => !p)}
-            notes={notes}
-          />
-        </div>
+        {sidebarOpen && (
+          <>
+            {/* Col 1: Nav Rail card */}
+            <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+              <NavRail
+                folders={folders}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={setSelectedFolderId}
+                people={people}
+                objectTypes={customObjectTypes}
+                onDeletePerson={deletePerson}
+                onCreateFolder={createFolder}
+                onDeleteFolder={deleteFolder}
+                onRenameFolder={renameFolder}
+                onCreate={createNote}
+                activeId={activeId}
+                onSelect={id => setActiveId(id)}
+                allTags={allTags}
+                activeTag={activeTag}
+                onTagFilter={setActiveTag}
+                graphOpen={graphOpen}
+                onToggleGraph={() => setGraphOpen(p => !p)}
+                notes={notes}
+                onToggleSidebar={() => setSidebarOpen(false)}
+              />
+            </div>
 
-        {/* Col 2: Note List card */}
-        <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
-          <NoteListPanel
-            notes={panelNotes}
-            folders={folders}
-            selectedFolderId={selectedFolderId}
-            activeTag={activeTag}
-            activeId={activeId}
-            onSelect={id => setActiveId(id)}
-            onCreate={createNote}
-            search={search}
-            onSearch={setSearch}
-            onMoveNote={moveNoteToFolder}
-          />
-        </div>
+            {/* Col 2: Note List card */}
+            <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+              <NoteListPanel
+                notes={panelNotes}
+                folders={folders}
+                selectedFolderId={selectedFolderId}
+                activeTag={activeTag}
+                activeId={activeId}
+                onSelect={id => setActiveId(id)}
+                onCreate={createNote}
+                search={search}
+                onSearch={setSearch}
+                onMoveNote={moveNoteToFolder}
+              />
+            </div>
+          </>
+        )}
 
         {/* Col 3: Editor card + optional Graph card */}
-        <div className="flex-1 min-w-0 flex gap-3 overflow-hidden">
+        <div className="flex-1 min-w-0 flex gap-1 overflow-hidden relative">
+          {!sidebarOpen && (
+            <button onClick={() => setSidebarOpen(true)} title="Open sidebar"
+              className="absolute top-5 left-5 z-20 w-8 h-8 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
+              <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
+            </button>
+          )}
           <div className="flex-1 overflow-hidden rounded-2xl shadow-sm bg-white dark:bg-zinc-900">
             {activeNote ? (
               <NoteEditor
