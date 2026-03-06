@@ -224,6 +224,7 @@ const BUILTIN_OBJECT_TYPES: ObjectType[] = [
   { id: 'person', name: 'Person', emoji: '👤', isBuiltin: true },
   { id: 'project', name: 'Project', emoji: '📁', isBuiltin: true },
   { id: 'task', name: 'Task', emoji: '✅', isBuiltin: true },
+  { id: 'meeting', name: 'Meeting', emoji: '📅', isBuiltin: true },
 ]
 
 function loadObjectTypes(): ObjectType[] {
@@ -3208,13 +3209,14 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
 
 // ─── Nav Rail (Column 1) ─────────────────────────────────────────────────────
 
-function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, onDeletePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar }: {
+function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar }: {
   folders: Folder[]
   selectedFolderId: string | null
   onSelectFolder: (id: string | null) => void
   people: Person[]
   objectTypes: ObjectType[]
   onDeletePerson: (id: string) => void
+  onCreatePerson: (name: string, typeId?: string) => void
   onCreateFolder: (name?: string) => void
   onDeleteFolder: (id: string) => void
   onRenameFolder: (id: string, name: string) => void
@@ -3231,6 +3233,8 @@ function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectType
 }) {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [creatingType, setCreatingType] = useState<string | null>(null)
+  const [creatingName, setCreatingName] = useState('')
   const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
   const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
 
@@ -3402,8 +3406,35 @@ function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectType
                             </button>
                           </div>
                         ))}
-                        {typeObjects.length === 0 && (
+                        {typeObjects.length === 0 && creatingType !== objType.id && (
                           <p className="px-3 text-[11px] text-stone-300 dark:text-zinc-700 italic">No {objType.name.toLowerCase()}s yet</p>
+                        )}
+                        {creatingType === objType.id ? (
+                          <div className="flex items-center px-3 py-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm ring-1 ring-orange-200 dark:ring-orange-900/50">
+                            <input
+                              autoFocus
+                              value={creatingName}
+                              onChange={e => setCreatingName(e.target.value)}
+                              placeholder={`New ${objType.name.toLowerCase()}...`}
+                              className="w-full bg-transparent outline-none text-[12px] text-stone-800 dark:text-zinc-200 placeholder:text-stone-400"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && creatingName.trim()) {
+                                  onCreatePerson(creatingName.trim(), objType.id)
+                                  setCreatingType(null)
+                                  setCreatingName('')
+                                }
+                                if (e.key === 'Escape') setCreatingType(null)
+                                e.stopPropagation()
+                              }}
+                              onBlur={() => setCreatingType(null)}
+                            />
+                          </div>
+                        ) : (
+                          <button onClick={() => { setCreatingType(objType.id); setCreatingName('') }}
+                            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-[11px] text-stone-400 dark:text-zinc-600 hover:text-orange-500 hover:bg-white/50 dark:hover:bg-zinc-800/30 transition-all mt-1">
+                            <Plus className="w-3 h-3" />
+                            New {objType.name.toLowerCase()}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -4183,6 +4214,7 @@ export default function NotesPage() {
                 people={people}
                 objectTypes={customObjectTypes}
                 onDeletePerson={deletePerson}
+                onCreatePerson={createPerson}
                 onCreateFolder={createFolder}
                 onDeleteFolder={deleteFolder}
                 onRenameFolder={renameFolder}
