@@ -14,7 +14,8 @@ import {
   Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
   ChevronRight, BookOpen, Calendar, GripVertical,
   User, Bold, Italic, Strikethrough, Palette, Underline,
-  Maximize2, Minimize2, FolderPlus, Pencil, Folder as FolderIcon
+  Maximize2, Minimize2, FolderPlus, Pencil, Folder as FolderIcon,
+  Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
 } from "lucide-react"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { useTheme } from "next-themes"
@@ -97,7 +98,18 @@ interface ObjectType {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const NOTE_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
-const NOTE_EMOJIS = ['📝', '💡', '🎯', '📚', '🔬', '🎨', '💻', '🌱', '⚡', '🔥', '📊', '🧠', '✨', '🚀', '🗒️', '📌']
+const FUTURISTIC_ICONS: Record<string, React.ElementType> = {
+  Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Network, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
+}
+const NOTE_ICON_KEYS = Object.keys(FUTURISTIC_ICONS)
+const LEGACY_NOTE_EMOJIS = ['📝', '💡', '🎯', '📚', '🔬', '🎨', '💻', '🌱', '⚡', '🔥', '📊', '🧠', '✨', '🚀', '🗒️', '📌']
+
+function NoteIcon({ iconName, className }: { iconName?: string, className?: string }) {
+  if (!iconName) return null
+  const IconComponent = FUTURISTIC_ICONS[iconName]
+  if (IconComponent) return <IconComponent className={className} />
+  return <span className={className}>{iconName}</span>
+}
 
 const BLOCK_ICONS: Record<BlockType, React.ReactNode> = {
   h1: <Heading1 className="w-3.5 h-3.5" />,
@@ -150,7 +162,7 @@ const SLASH_MENU_ITEMS: { type: BlockType; label: string; shortcut?: string }[] 
 
 const SEED_NOTES: Note[] = [
   {
-    id: 'seed-1', title: 'Welcome to Locus', emoji: '✨', color: '#6366f1',
+    id: 'seed-1', title: 'Welcome to Locus', emoji: 'Sparkles', color: '#6366f1',
     blocks: [
       { id: 'b1', type: 'h1', content: 'Welcome to Locus Notes' },
       { id: 'b2', type: 'p', content: 'A block editor with an Obsidian-style tag network. Tags connect notes and appear as edges in the graph view →' },
@@ -163,7 +175,7 @@ const SEED_NOTES: Note[] = [
     createdAt: Date.now() - 7200000, updatedAt: Date.now(),
   },
   {
-    id: 'seed-2', title: 'Ideas Board', emoji: '💡', color: '#f59e0b',
+    id: 'seed-2', title: 'Ideas Board', emoji: 'BrainCircuit', color: '#f59e0b',
     blocks: [
       { id: 'b1', type: 'h2', content: 'Ideas to explore' },
       { id: 'b2', type: 'todo', content: 'Build something new', checked: false },
@@ -175,7 +187,7 @@ const SEED_NOTES: Note[] = [
     createdAt: Date.now() - 3600000, updatedAt: Date.now(),
   },
   {
-    id: 'seed-3', title: 'Research Notes', emoji: '🔬', color: '#10b981',
+    id: 'seed-3', title: 'Research Notes', emoji: 'Atom', color: '#10b981',
     blocks: [
       { id: 'b1', type: 'h2', content: 'Research Notes' },
       { id: 'b2', type: 'quote', content: 'The more I learn, the more I realize how much I don\'t know. — Socrates' },
@@ -269,7 +281,7 @@ function mkNote(): Note {
   return {
     id: crypto.randomUUID(),
     title: 'Untitled',
-    emoji: NOTE_EMOJIS[Math.floor(Math.random() * NOTE_EMOJIS.length)],
+    emoji: NOTE_ICON_KEYS[Math.floor(Math.random() * NOTE_ICON_KEYS.length)],
     color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)],
     blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
     tags: [],
@@ -704,11 +716,11 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpanded, onT
                   stroke={T.cardFill} strokeWidth={2}
                   opacity={isActive ? 1 : isHov ? 0.85 : 0.65}
                 />
-                <text x={-NW + 22} textAnchor="middle" dominantBaseline="central"
-                  fontSize={14} style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {node.emoji}
-                </text>
+                <foreignObject x={-NW + 12} y={-10} width={20} height={20} style={{ pointerEvents: 'none' }}>
+                  <div className="w-full h-full flex items-center justify-center text-stone-500 dark:text-zinc-400">
+                    <NoteIcon iconName={node.emoji} className="w-4 h-4" />
+                  </div>
+                </foreignObject>
                 <text x={-NW + 36} textAnchor="start" dominantBaseline="central"
                   fontSize={10.5}
                   fill={isActive ? T.textNoteActive : isHov ? T.textNoteHover : T.textNote}
@@ -728,7 +740,7 @@ function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpanded, onT
         <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none" style={{ zIndex: 10 }}>
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
             style={{ background: T.tooltip, border: `1px solid ${T.tooltipBorder}`, color: T.tooltipText, backdropFilter: 'blur(8px)', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
-            {hoveredNode.type === 'note' && <span>{hoveredNode.emoji}</span>}
+            {hoveredNode.type === 'note' && <NoteIcon iconName={hoveredNode.emoji} className="w-3.5 h-3.5 opacity-80" />}
             <span>{hoveredNode.type === 'tag' ? `#${hoveredNode.label}` : hoveredNode.label}</span>
           </div>
         </div>
@@ -3013,20 +3025,21 @@ function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson,
           <div className="mb-8 space-y-3">
             <div className="relative inline-block">
               <button
-                className="text-5xl hover:bg-muted rounded-lg p-1 transition-colors leading-none"
+                className="w-12 h-12 flex items-center justify-center hover:bg-muted text-muted-foreground rounded-lg p-1 transition-colors leading-none"
                 onClick={() => setShowEmojiPicker(p => !p)}
-                title="Change emoji"
+                title="Change icon"
               >
-                {note.emoji}
+                <NoteIcon iconName={note.emoji} className="w-8 h-8" />
               </button>
               {showEmojiPicker && (
                 <div className="absolute top-full left-0 z-50 mt-1 p-2 bg-popover border rounded-xl shadow-xl grid grid-cols-8 gap-1 w-max">
-                  {NOTE_EMOJIS.map(em => (
+                  {NOTE_ICON_KEYS.map(em => (
                     <button key={em}
-                      className={cn("w-10 h-10 flex items-center justify-center flex-shrink-0 overflow-hidden rounded hover:bg-accent transition-colors", em === note.emoji && 'bg-accent')}
-                      style={{ fontSize: '22px', lineHeight: 1 }}
+                      className={cn("w-10 h-10 flex items-center justify-center flex-shrink-0 overflow-hidden rounded hover:bg-accent text-muted-foreground transition-colors", em === note.emoji && 'bg-accent text-foreground')}
                       onClick={() => { onChange(note.id, { emoji: em }); setShowEmojiPicker(false) }}
-                    >{em}</button>
+                    >
+                      <NoteIcon iconName={em} className="w-5 h-5" />
+                    </button>
                   ))}
                 </div>
               )}
@@ -3513,7 +3526,7 @@ function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, 
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: note.color + '22' }}>
-                        <span className="text-sm leading-none">{note.emoji}</span>
+                        <NoteIcon iconName={note.emoji} className="w-4 h-4 leading-none" />
                       </div>
                       <span className={cn(
                         "text-[13px] leading-snug truncate",
@@ -3620,7 +3633,9 @@ function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCrea
             : 'hover:bg-background/80'
         )}
       >
-        <span className="text-base leading-none mt-0.5 flex-shrink-0">{note.emoji}</span>
+        <span className="flex items-center justify-center w-5 h-5 mt-0.5 flex-shrink-0 text-stone-500">
+          <NoteIcon iconName={note.emoji} className="w-4 h-4" />
+        </span>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{note.title || 'Untitled'}</div>
           <div className="flex flex-wrap gap-1 mt-0.5">
