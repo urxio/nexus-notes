@@ -63,11 +63,11 @@ export function savePeople(people: Person[]) {
     try { localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(people)) } catch { }
 }
 
-export function mkPerson(name: string): Person {
+export function mkPerson(name: string, emoji: string = '👤'): Person {
     return {
         id: crypto.randomUUID(),
         name,
-        emoji: PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)],
+        emoji,
     }
 }
 
@@ -85,11 +85,11 @@ export function saveNotes(notes: Note[]) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)) } catch { }
 }
 
-export function mkNote(): Note {
+export function mkNote(emoji: string = 'file'): Note {
     return {
         id: crypto.randomUUID(),
         title: 'Untitled',
-        emoji: NOTE_ICON_KEYS[Math.floor(Math.random() * NOTE_ICON_KEYS.length)],
+        emoji,
         color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)],
         blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
         tags: [],

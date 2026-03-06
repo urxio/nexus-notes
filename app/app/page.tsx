@@ -144,13 +144,13 @@ export default function NotesPage() {
     const objType = allTypes.find(t => t.id === typeId)
     const noteEmoji = objType?.emoji ?? PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)]
     const personNote: Note = {
-      ...mkNote(),
+      ...mkNote(noteEmoji),
       title: name,
       emoji: noteEmoji,
       blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
       tags: [],
     }
-    const person: Person = { ...mkPerson(name), noteId: personNote.id, typeId }
+    const person: Person = { ...mkPerson(name, noteEmoji), noteId: personNote.id, typeId }
       // Store personId on the note so we can identify it as a person page
       ; (personNote as any).personId = person.id
     setNotes(prev => [personNote, ...prev])
@@ -185,7 +185,7 @@ export default function NotesPage() {
   }, [notes])
 
   function createNote() {
-    const note = { ...mkNote(), folderId: selectedFolderId }
+    const note = { ...mkNote('📝'), folderId: selectedFolderId }
     setNotes(prev => [note, ...prev])
     setActiveId(note.id)
     setSearch('')
