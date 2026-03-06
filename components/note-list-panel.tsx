@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { createPortal } from "react-dom"
-import { Plus, Search, FileText } from "lucide-react"
+import { Plus, Search, FileText, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Note, Folder } from "@/lib/types"
@@ -17,9 +17,10 @@ interface NoteListPanelProps {
     search: string
     onSearch: (q: string) => void
     onMoveNote: (noteId: string, folderId: string | null) => void
+    onDeleteNote: (noteId: string) => void
 }
 
-export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote }: NoteListPanelProps) {
+export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote }: NoteListPanelProps) {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
     const label = selectedFolderId
@@ -146,6 +147,12 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                             </button>
                         ))}
                         {folders.length === 0 && <p className="px-4 py-2 text-[11px] text-stone-300 italic">No folders yet</p>}
+                        <div className="h-px bg-border my-1 mx-2" />
+                        <button onClick={() => { onDeleteNote(ctxMenu.noteId); setCtxMenu(null) }}
+                            className="w-full text-left px-4 py-2 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                            Delete note
+                        </button>
                     </div>
                 </>,
                 document.body

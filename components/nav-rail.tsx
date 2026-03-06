@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { createPortal } from "react-dom"
 import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -35,6 +36,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const [editingName, setEditingName] = useState('')
     const [creatingType, setCreatingType] = useState<string | null>(null)
     const [creatingName, setCreatingName] = useState('')
+    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'person' | 'folder'; id: string } | null>(null)
     const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes]
     const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
 
@@ -109,6 +111,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                     <div key={folder.id} className="group/folder flex items-center">
                                         <button
                                             onClick={() => { onSelectFolder(folder.id); onTagFilter(null) }}
+                                            onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'folder', id: folder.id }) }}
                                             className={cn(
                                                 "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all text-left",
                                                 isSelected
@@ -184,6 +187,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                     <div key={person.id} className="group/person flex items-center">
                                                         <button
                                                             onClick={() => person.noteId && onSelect(person.noteId)}
+                                                            onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'person', id: person.id }) }}
                                                             className={cn(
                                                                 "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all text-left",
                                                                 person.noteId && activeId === person.noteId
@@ -267,6 +271,26 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                     )}
                 </div>
             </ScrollArea>
+
+            {/* Context menu */}
+            {ctxMenu && createPortal(
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
+                    <div className="fixed z-50 bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-stone-100 dark:border-zinc-800 py-1 min-w-[160px]" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+                        {ctxMenu.type === 'person' && (
+                            <button onClick={() => { onDeletePerson(ctxMenu.id); setCtxMenu(null) }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" /> Delete object
+                            </button>
+                        )}
+                        {ctxMenu.type === 'folder' && (
+                            <button onClick={() => { onDeleteFolder(ctxMenu.id); setCtxMenu(null) }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-stone-50 dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" /> Delete folder
+                            </button>
+                        )}
+                    </div>
+                </>,
+                document.body
+            )}
 
             {/* Footer */}
             <div className="px-4 py-3 flex items-center justify-between">

@@ -32,10 +32,11 @@ interface SidebarProps {
     onRenameFolder: (id: string, name: string) => void
     onDeleteFolder: (id: string) => void
     onMoveNote: (noteId: string, folderId: string | null) => void
+    onDeleteNote: (noteId: string) => void
 }
 
-export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote }: SidebarProps) {
-    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote, onDeleteNote }: SidebarProps) {
+    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'note' | 'person' | 'folder'; id: string } | null>(null)
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
     const [editingName, setEditingName] = useState('')
 
@@ -56,7 +57,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
         return (
             <button key={note.id}
                 onClick={() => onSelect(note.id)}
-                onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
+                onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'note', id: note.id }) }}
                 style={{ paddingLeft: `${8 + depth * 14}px` }}
                 className={cn(
                     "w-full text-left pr-2.5 py-2 rounded-lg flex items-start gap-2 group transition-colors",
@@ -91,7 +92,9 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                     style={{ paddingLeft: `${4 + depth * 14}px` }}
                     className="flex items-center gap-0.5 group/folder pr-1 py-1 rounded-md hover:bg-background/50"
                 >
-                    <button onClick={() => onToggleFolder(folder.id)} className="flex items-center gap-1 flex-1 min-w-0">
+                    <button onClick={() => onToggleFolder(folder.id)}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'folder', id: folder.id }) }}
+                        className="flex items-center gap-1 flex-1 min-w-0">
                         <ChevronRight
                             className={cn("w-3 h-3 text-muted-foreground/60 transition-transform flex-shrink-0", isOpen && "rotate-90")}
                         />
@@ -244,6 +247,7 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                                                 <div key={person.id} className="group/person flex items-center gap-0.5">
                                                     <button
                                                         onClick={() => person.noteId && onSelect(person.noteId)}
+                                                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'person', id: person.id }) }}
                                                         className={cn(
                                                             "flex-1 min-w-0 text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors text-sm",
                                                             person.noteId && activeId === person.noteId
@@ -324,26 +328,44 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
                         className="fixed z-50 bg-popover border rounded-lg shadow-lg py-1 min-w-[190px] text-sm"
                         style={{ left: ctxMenu.x, top: ctxMenu.y }}
                     >
-                        <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Move to…</div>
-                        <button
-                            onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-                        >
-                            <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            Root (no folder)
-                        </button>
-                        {folders.map(folder => (
-                            <button
-                                key={folder.id}
-                                onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
-                                className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
-                            >
-                                <NoteIcon iconName="Folder" className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-                                <span className="truncate">{folder.name}</span>
+                        {ctxMenu.type === 'note' ? (
+                            <>
+                                <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Move to…</div>
+                                <button
+                                    onClick={() => { onMoveNote(ctxMenu.id, null); setCtxMenu(null) }}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+                                >
+                                    <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                    Root (no folder)
+                                </button>
+                                {folders.map(folder => (
+                                    <button
+                                        key={folder.id}
+                                        onClick={() => { onMoveNote(ctxMenu.id, folder.id); setCtxMenu(null) }}
+                                        className="w-full text-left px-3 py-1.5 hover:bg-accent flex items-center gap-2 transition-colors"
+                                    >
+                                        <NoteIcon iconName="Folder" className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                                        <span className="truncate">{folder.name}</span>
+                                    </button>
+                                ))}
+                                {folders.length === 0 && (
+                                    <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No folders yet</div>
+                                )}
+                                <div className="h-px bg-border my-1 mx-2" />
+                                <button onClick={() => { onDeleteNote(ctxMenu.id); setCtxMenu(null) }}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 text-destructive flex items-center gap-2 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                    Delete note
+                                </button>
+                            </>
+                        ) : ctxMenu.type === 'person' ? (
+                            <button onClick={() => { onDeletePerson(ctxMenu.id); setCtxMenu(null) }} className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 text-destructive flex items-center gap-2 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" /> Delete object
                             </button>
-                        ))}
-                        {folders.length === 0 && (
-                            <div className="px-3 py-1.5 text-xs text-muted-foreground/50 italic">No folders yet</div>
+                        ) : (
+                            <button onClick={() => { onDeleteFolder(ctxMenu.id); setCtxMenu(null) }} className="w-full text-left px-3 py-1.5 hover:bg-destructive/10 text-destructive flex items-center gap-2 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" /> Delete folder
+                            </button>
                         )}
                     </div>
                 </>,

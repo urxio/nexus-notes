@@ -318,6 +318,7 @@ export default function NotesPage() {
                 search={search}
                 onSearch={setSearch}
                 onMoveNote={moveNoteToFolder}
+                onDeleteNote={deleteNote}
               />
             </div>
           </>
