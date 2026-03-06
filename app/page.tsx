@@ -34,7 +34,10 @@ export default function LandingPage() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      alert("To install Locus Notes, click your browser's 'Share' or 'Menu' button and select 'Add to Home Screen' or 'Install App'.")
+      return;
+    }
     // Show the install prompt
     installPrompt.prompt();
     // Wait for the user to respond to the prompt
@@ -73,14 +76,12 @@ export default function LandingPage() {
               <Github className="w-4 h-4" />
               <span>GitHub</span>
             </a>
-            {isInstallable && (
-              <button
-                onClick={handleInstallClick}
-                className="text-zinc-300 hover:text-white transition-colors text-sm font-medium hidden sm:block"
-              >
-                Install App
-              </button>
-            )}
+            <button
+              onClick={handleInstallClick}
+              className="text-zinc-300 hover:text-white transition-colors text-sm font-medium hidden sm:block"
+            >
+              Install App
+            </button>
             <Link href="/app" className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-2 rounded-full text-sm font-medium transition-all shadow-lg shadow-orange-600/20 flex items-center gap-2 group border border-orange-500/50 shrink-0">
               <span>Open App</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
