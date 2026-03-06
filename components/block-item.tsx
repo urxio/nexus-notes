@@ -53,7 +53,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
     // @ New-type inline form state
     const [showNewTypeForm, setShowNewTypeForm] = useState(false)
     const [newTypeName, setNewTypeName] = useState('')
-    const [newTypeEmoji, setNewTypeEmoji] = useState('🔖')
+    const [newTypeEmoji, setNewTypeEmoji] = useState('MapPin')
 
     // Set content imperatively on mount / type change / undo-redo content restore
     useEffect(() => {
@@ -986,7 +986,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                 const exactMatch = filteredObjects.some(p => p.name.toLowerCase() === trimmedFilter.toLowerCase())
                 const canCreate = trimmedFilter.length > 0 && !exactMatch
                 const createOptions = canCreate ? allTypes : []
-                const NEW_TYPE_EMOJIS = ['🔖', '📋', '🏢', '🎯', '💼', '🔧', '🌐', '📅', '🎪', '🔑', '🧩', '⭐']
+                const NEW_TYPE_ICONS = ['MapPin', 'Clipboard', 'Building2', 'Target', 'Briefcase', 'Wrench', 'Globe', 'Calendar', 'Tent', 'Key', 'Puzzle', 'Star']
                 return (
                     <div className="absolute left-12 top-full z-50 mt-1 w-64 rounded-lg border bg-popover shadow-lg overflow-hidden">
                         <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-medium tracking-wider border-b flex items-center gap-1.5">
@@ -1042,7 +1042,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                     {!showNewTypeForm && (
                                         <button
                                             className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-accent transition-colors text-left text-muted-foreground border-t mt-1 pt-2"
-                                            onMouseDown={e => { e.preventDefault(); setShowNewTypeForm(true); setNewTypeName(''); setNewTypeEmoji('🔖') }}
+                                            onMouseDown={e => { e.preventDefault(); setShowNewTypeForm(true); setNewTypeName(''); setNewTypeEmoji('MapPin') }}
                                         >
                                             <Plus className="w-3.5 h-3.5" />
                                             <span>New type…</span>
@@ -1072,13 +1072,13 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                                 />
                                             </div>
                                             <div className="flex flex-wrap gap-1">
-                                                {NEW_TYPE_EMOJIS.map(em => (
+                                                {NEW_TYPE_ICONS.map(iconKey => (
                                                     <button
-                                                        key={em}
-                                                        className={cn("w-7 h-7 flex items-center justify-center rounded hover:bg-accent text-base transition-colors", newTypeEmoji === em && 'bg-accent ring-1 ring-primary/30')}
-                                                        onMouseDown={e => { e.preventDefault(); setNewTypeEmoji(em) }}
+                                                        key={iconKey}
+                                                        className={cn("w-7 h-7 flex items-center justify-center rounded hover:bg-accent text-base transition-colors", newTypeEmoji === iconKey && 'bg-accent ring-1 ring-primary/30')}
+                                                        onMouseDown={e => { e.preventDefault(); setNewTypeEmoji(iconKey) }}
                                                     >
-                                                        {em}
+                                                        <NoteIcon iconName={iconKey} className="w-4 h-4 text-muted-foreground" />
                                                     </button>
                                                 ))}
                                             </div>
@@ -1094,7 +1094,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                                         setShowNewTypeForm(false)
                                                     }}
                                                 >
-                                                    Create {newTypeEmoji} {newTypeName || '…'}
+                                                    Create <NoteIcon iconName={newTypeEmoji} className="w-3 h-3 inline-block mx-1" /> {newTypeName || '…'}
                                                 </button>
                                                 <button
                                                     className="text-xs px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
