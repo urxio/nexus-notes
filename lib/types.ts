@@ -1,5 +1,28 @@
 export type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'bullet' | 'numbered' | 'quote' | 'code' | 'divider' | 'todo' | 'date' | 'toggle' | 'table'
 
+// ── Page properties (Notion-style) ───────────────────────────────────────────
+
+export type PropertyType =
+    | 'text' | 'number' | 'date'
+    | 'select' | 'multi_select'
+    | 'checkbox' | 'url' | 'email' | 'phone' | 'person'
+
+export interface PropertyOption {
+    id: string
+    label: string
+    color: string   // hex color for the chip (e.g. '#3b82f6')
+}
+
+export interface NoteProperty {
+    id: string
+    name: string
+    type: PropertyType
+    /** string for text/url/email/phone/date(ISO)/select(optionId)/person(personId)
+     *  number for number, boolean for checkbox, string[] for multi_select */
+    value: string | number | boolean | string[] | null
+    options?: PropertyOption[]  // for select / multi_select only
+}
+
 export interface Block {
     id: string
     type: BlockType
@@ -16,6 +39,7 @@ export interface Note {
     color: string
     blocks: Block[]
     tags: string[]
+    properties?: NoteProperty[]
     createdAt: number
     updatedAt: number
     personId?: string

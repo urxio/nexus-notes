@@ -108,6 +108,7 @@ export function mkNote(emoji: string = 'FileText'): Note {
         color: NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)],
         blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
         tags: [],
+        properties: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
     }

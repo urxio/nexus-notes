@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Note, Person, ObjectType, Block, BlockType } from "@/lib/types"
+import { Note, Person, ObjectType, Block, BlockType, NoteProperty } from "@/lib/types"
 import { mkBlock, cloneBlock } from "@/lib/storage"
 import { NOTE_ICON_KEYS } from "@/lib/constants"
 import { NoteIcon } from "./note-icon"
 import { FormatToolbar } from "./format-toolbar"
 import { BlockItem } from "./block-item"
+import { NoteProperties } from "./note-properties"
 
 interface NoteEditorProps {
     note: Note
@@ -971,6 +972,13 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             <span>Edited {formatDate(note.updatedAt)}</span>
                         </div>
                     </div>
+
+                    {/* Properties */}
+                    <NoteProperties
+                        properties={note.properties ?? []}
+                        people={people}
+                        onChange={(props: NoteProperty[]) => onChange(note.id, { properties: props })}
+                    />
 
                     {/* Blocks */}
                     <FormatToolbar />
