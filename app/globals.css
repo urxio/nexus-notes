@@ -3,7 +3,10 @@
 @tailwind utilities;
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 @layer utilities {
@@ -35,39 +38,75 @@ body {
     background: hsl(var(--primary) / 0.25) !important;
     border-color: hsl(var(--primary) / 0.55) !important;
   }
+
+  /* JetBrains Mono for all monospace elements — section labels, tags, code blocks */
+  .font-mono {
+    font-family: var(--font-mono), 'Cascadia Code', ui-monospace, 'Source Code Pro', Menlo, Consolas, monospace;
+    font-feature-settings: 'calt' 1, 'liga' 1;
+  }
+}
+
+/* ── Text selection — warm amber matching the app's orange accent ──────── */
+::selection {
+  background: rgba(249, 115, 22, 0.15);
+  color: inherit;
+}
+
+.dark ::selection {
+  background: rgba(249, 115, 22, 0.22);
+  color: inherit;
+}
+
+/* ── Light mode scrollbars — thin, elegant, warm stone ────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 113, 108, 0.2);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 113, 108, 0.38);
 }
 
 @layer base {
   /* ── Light mode ─────────────────────────────────────── */
   :root {
     --background: 0 0% 100%;
-    --foreground: 224 20% 12%;          /* near-black, slight blue tint */
-    --card: 0 0% 100%;
-    --card-foreground: 224 20% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 20% 12%;
-    --primary: 239 84% 62%;             /* indigo-500 */
+    --foreground: 20 12% 11%;           /* warm near-black — matches stone palette */
+    --card: 30 25% 99%;                 /* faintly warm white */
+    --card-foreground: 20 12% 11%;
+    --popover: 30 30% 99.5%;            /* warm popover */
+    --popover-foreground: 20 12% 11%;
+    --primary: 239 84% 62%;             /* indigo-500 — date chips & focus rings */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 94%;
-    --secondary-foreground: 224 20% 20%;
-    --muted: 220 18% 94%;
-    --muted-foreground: 220 14% 42%;    /* ↑ darker than default — readable at 9-10px */
-    --accent: 220 18% 92%;
-    --accent-foreground: 224 20% 14%;
+    --secondary: 30 18% 93%;            /* warm muted fill */
+    --secondary-foreground: 20 10% 22%;
+    --muted: 30 18% 93%;                /* warm muted — echoes stone-100/200 */
+    --muted-foreground: 20 10% 44%;     /* warm mid-gray — echoes stone-500 */
+    --accent: 30 22% 90%;               /* warm hover/active accent */
+    --accent-foreground: 20 12% 15%;
     --destructive: 0 80% 56%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 18% 88%;              /* slightly more visible */
-    --input: 220 18% 90%;
+    --border: 30 14% 86%;               /* warm border — complements #EEEDEA shell */
+    --input: 30 14% 91%;                /* warm input background */
     --ring: 239 84% 62%;
     --radius: 0.5rem;
-    /* sidebar — warm off-white so it reads as a panel, not the editor */
-    --sidebar-background: 220 20% 97%;
-    --sidebar-foreground: 224 20% 18%;
+    /* sidebar */
+    --sidebar-background: 30 28% 97%;   /* very warm off-white */
+    --sidebar-foreground: 20 12% 18%;
     --sidebar-primary: 239 84% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 18% 92%;
-    --sidebar-accent-foreground: 224 20% 14%;
-    --sidebar-border: 220 18% 88%;
+    --sidebar-accent: 30 22% 91%;
+    --sidebar-accent-foreground: 20 12% 14%;
+    --sidebar-border: 30 14% 86%;
     --sidebar-ring: 239 84% 62%;
   }
 
@@ -111,10 +150,24 @@ body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
 
-  /* Custom scrollbar for dark mode */
+  /* ── Editor block typography ────────────────────────── */
+
+  /* Orange caret in editing blocks matches the app's orange accent */
+  [contenteditable="true"] {
+    caret-color: rgb(234, 88, 12);
+    line-height: 1.75;
+  }
+
+  /* Slightly better link styling inside editor content */
+  [contenteditable="true"] a {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  /* Dark mode scrollbar overrides — slightly more refined than before */
   .dark ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
   }
 
   .dark ::-webkit-scrollbar-track {
@@ -122,11 +175,11 @@ body {
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/50 rounded-full;
+    @apply bg-muted-foreground/40 rounded-full;
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/70;
+    @apply bg-muted-foreground/60;
   }
 
   /* Theme transition effects */
