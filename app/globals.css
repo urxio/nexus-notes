@@ -12,6 +12,31 @@ body {
   }
 }
 
+@layer components {
+  /* Inline date chip — rendered inside contenteditable and dangerouslySetInnerHTML.
+     Must live in @layer components (higher than @layer base) so it wins over
+     Tailwind utility classes inherited from the parent contenteditable. */
+  .inline-date-chip {
+    display: inline !important;
+    padding: 1px 8px 2px;
+    border-radius: 5px;
+    font-size: 0.875em;
+    background: hsl(var(--primary) / 0.15) !important;
+    color: hsl(var(--primary)) !important;
+    border: 1px solid hsl(var(--primary) / 0.35) !important;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    line-height: inherit;
+    vertical-align: baseline;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .inline-date-chip:hover {
+    background: hsl(var(--primary) / 0.25) !important;
+    border-color: hsl(var(--primary) / 0.55) !important;
+  }
+}
+
 @layer base {
   /* ── Light mode ─────────────────────────────────────── */
   :root {
@@ -109,26 +134,4 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
 
-  /* Inline date chip — rendered inside contenteditable and dangerouslySetInnerHTML */
-  .inline-date-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1px 8px 2px;
-    border-radius: 5px;
-    font-size: 0.875em;
-    background: hsl(var(--primary) / 0.12);
-    color: hsl(var(--primary));
-    border: 1px solid hsl(var(--primary) / 0.30);
-    cursor: pointer;
-    user-select: none;
-    font-weight: 600;
-    line-height: inherit;
-    vertical-align: baseline;
-    transition: background 0.15s, border-color 0.15s;
-  }
-  .inline-date-chip:hover {
-    background: hsl(var(--primary) / 0.20);
-    border-color: hsl(var(--primary) / 0.50);
-  }
 }

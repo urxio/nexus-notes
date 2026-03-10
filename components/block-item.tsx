@@ -547,8 +547,8 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
         const afterCursor = currentText.slice(cursorPos)
 
         if (type === 'date') {
-            // Insert an inline date chip at the cursor position, then jump to a
-            // new paragraph after so the user can keep typing on the next line.
+            // Insert an inline date chip at the cursor position and keep the
+            // cursor in the same block, right after the chip.
             const todayIso = new Date().toISOString().split('T')[0]
             const dateChip = createInlineDateHtml(todayIso)
             // Escape the text-before-slash as safe HTML (it's plain text from textContent)
@@ -558,11 +558,35 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
             if (activeIsBody) {
                 if (bodyRef.current) bodyRef.current.innerHTML = newHtml
                 onUpdate(block.id, { expandedContent: newHtml })
-                setTimeout(() => onInsert(block.id, 'p', afterCursor.trim()), 0)
+                // Place cursor right after the chip, staying in the same editor
+                setTimeout(() => {
+                    if (!bodyRef.current) return
+                    const chip = bodyRef.current.querySelector('[data-type="date"]')
+                    if (chip) {
+                        const range = document.createRange()
+                        const sel = window.getSelection()
+                        range.setStartAfter(chip)
+                        range.collapse(true)
+                        sel?.removeAllRanges()
+                        sel?.addRange(range)
+                    }
+                }, 0)
             } else {
                 if (ref.current) ref.current.innerHTML = newHtml
                 onUpdate(block.id, { content: newHtml })
-                setTimeout(() => onInsert(block.id, 'p', afterCursor.trim()), 0)
+                // Place cursor right after the chip, staying in the same editor
+                setTimeout(() => {
+                    if (!ref.current) return
+                    const chip = ref.current.querySelector('[data-type="date"]')
+                    if (chip) {
+                        const range = document.createRange()
+                        const sel = window.getSelection()
+                        range.setStartAfter(chip)
+                        range.collapse(true)
+                        sel?.removeAllRanges()
+                        sel?.addRange(range)
+                    }
+                }, 0)
             }
         } else {
             if (activeIsBody) {
