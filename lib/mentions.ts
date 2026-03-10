@@ -36,7 +36,24 @@ export function formatInlineDate(isoDate: string): string {
  */
 export function createInlineDateHtml(isoDate: string): string {
     const id = Math.random().toString(36).slice(2, 9)
-    return `<span contenteditable="false" data-type="date" data-date="${isoDate}" data-dateid="${id}" class="inline-date-chip">${formatInlineDate(isoDate)}</span>`
+    // Inline styles guarantee the chip is coloured regardless of Tailwind cascade.
+    // CSS custom properties (--primary) resolve correctly in inline styles too.
+    const style = [
+        'display:inline',
+        'padding:1px 8px 2px',
+        'border-radius:5px',
+        'font-size:0.875em',
+        'background:hsl(var(--primary)/0.15)',
+        'color:hsl(var(--primary))',
+        'border:1px solid hsl(var(--primary)/0.35)',
+        'cursor:pointer',
+        'user-select:none',
+        'font-weight:600',
+        'line-height:inherit',
+        'vertical-align:baseline',
+        'transition:background 0.15s,border-color 0.15s',
+    ].join(';')
+    return `<span contenteditable="false" data-type="date" data-date="${isoDate}" data-dateid="${id}" class="inline-date-chip" style="${style}">${formatInlineDate(isoDate)}</span>`
 }
 
 export function injectMentionsIntoHtml(html: string, people: Person[]): string {
