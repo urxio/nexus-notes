@@ -7,6 +7,7 @@ import { BLOCK_ICONS } from "./block-icons"
 import { NoteIcon } from "./note-icon"
 import { DateBlock } from "./date-block"
 import { InlineDatePicker } from "./inline-date-picker"
+import { TableBlock } from "./table-block"
 import { injectMentionsIntoHtml, linkifyUrls, createInlineDateHtml, formatInlineDate } from "@/lib/mentions"
 
 interface BlockItemProps {
@@ -597,14 +598,14 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
 
                 let newBlockContent = ''
                 if (type === 'table') {
-                    newBlockContent = '   |   |   \n   |   |   \n   |   |   '
+                    newBlockContent = '||\n||\n||'
                 }
                 setTimeout(() => onInsert(block.id, type, newBlockContent), 0)
             } else {
                 // structural command from main content: keep typed text but change block type
                 let newBlockContent = beforeSlash + afterCursor
                 if (type === 'table') {
-                    newBlockContent = '   |   |   \n   |   |   \n   |   |   '
+                    newBlockContent = '||\n||\n||'
                 }
                 el.textContent = newBlockContent
                 onUpdate(block.id, { type, content: newBlockContent })
@@ -995,44 +996,8 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                         )}
                     </div>
                 ) : block.type === 'table' ? (
-                    <div className="flex-1">
-                        <div className="inline-block border rounded-md overflow-hidden bg-background/80">
-                            <table className="border-collapse text-sm">
-                                <tbody>
-                                    {block.content.split('\n').map((row, rowIdx) => {
-                                        const cells = row.split('|')
-                                        return (
-                                            <tr key={rowIdx}>
-                                                {cells.map((cell, colIdx) => (
-                                                    <td
-                                                        key={colIdx}
-                                                        className="border border-border min-w-[80px] px-2 py-1 align-top"
-                                                    >
-                                                        <div
-                                                            contentEditable
-                                                            suppressContentEditableWarning
-                                                            className="outline-none whitespace-pre-wrap"
-                                                            onInput={(e) => {
-                                                                const text = e.currentTarget.textContent ?? ''
-                                                                const rows = block.content.split('\n').map(r => r.split('|'))
-                                                                if (!rows[rowIdx]) rows[rowIdx] = []
-                                                                rows[rowIdx][colIdx] = text
-                                                                const nextContent = rows
-                                                                    .map(r => r.map(c => c ?? '').join('|'))
-                                                                    .join('\n')
-                                                                onUpdate(block.id, { content: nextContent })
-                                                            }}
-                                                        >
-                                                            {cell}
-                                                        </div>
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="flex-1 overflow-x-auto">
+                        <TableBlock block={block} onUpdate={onUpdate} onFocus={onFocus} />
                     </div>
                 ) : (
                     editableEl
