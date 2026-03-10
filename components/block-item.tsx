@@ -6,7 +6,8 @@ import { SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, BLOCK_PLACEHOLDERS } from "@/li
 import { BLOCK_ICONS } from "./block-icons"
 import { NoteIcon } from "./note-icon"
 import { DateBlock } from "./date-block"
-import { injectMentionsIntoHtml, linkifyUrls } from "@/lib/mentions"
+import { InlineDatePicker } from "./inline-date-picker"
+import { injectMentionsIntoHtml, linkifyUrls, createInlineDateHtml, formatInlineDate } from "@/lib/mentions"
 
 interface BlockItemProps {
     block: Block; index: number; listIndex: number; numBlocks: number; isFocused: boolean
@@ -50,6 +51,9 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
     const mentionAnchorRef = useRef<number>(-1)
     const activeEditorRef = useRef<'main' | 'body'>('main')
     const slashAnchorRef = useRef<number>(-1)
+    // Inline date picker: set when user clicks a [data-type="date"] chip
+    const [activeDateAnchor, setActiveDateAnchor] = useState<{ rect: DOMRect; dateId: string; date: string } | null>(null)
+
     // @ New-type inline form state
     const [showNewTypeForm, setShowNewTypeForm] = useState(false)
     const [newTypeName, setNewTypeName] = useState('')
@@ -543,15 +547,22 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
         const afterCursor = currentText.slice(cursorPos)
 
         if (type === 'date') {
+            // Insert an inline date chip at the cursor position, then jump to a
+            // new paragraph after so the user can keep typing on the next line.
             const todayIso = new Date().toISOString().split('T')[0]
-            const residual = (beforeSlash + afterCursor).trim()
+            const dateChip = createInlineDateHtml(todayIso)
+            // Escape the text-before-slash as safe HTML (it's plain text from textContent)
+            const safeTmp = document.createElement('span')
+            safeTmp.textContent = beforeSlash
+            const newHtml = safeTmp.innerHTML + dateChip
             if (activeIsBody) {
-                onUpdate(block.id, { expandedContent: residual })
-                setTimeout(() => onInsert(block.id, 'date', todayIso), 0)
+                if (bodyRef.current) bodyRef.current.innerHTML = newHtml
+                onUpdate(block.id, { expandedContent: newHtml })
+                setTimeout(() => onInsert(block.id, 'p', afterCursor.trim()), 0)
             } else {
-                el.textContent = residual
-                onUpdate(block.id, { type: 'date', content: todayIso })
-                setTimeout(() => onInsert(block.id, 'p', ''), 0)
+                if (ref.current) ref.current.innerHTML = newHtml
+                onUpdate(block.id, { content: newHtml })
+                setTimeout(() => onInsert(block.id, 'p', afterCursor.trim()), 0)
             }
         } else {
             if (activeIsBody) {
@@ -583,6 +594,63 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
         setShowMenu(false)
         setMenuFilter('')
         slashAnchorRef.current = -1
+    }
+
+    // ── Inline date chip helpers ──────────────────────────────────────────────
+
+    /** Open the floating picker when the user clicks/mousedowns a date chip. */
+    function openDatePicker(span: HTMLElement) {
+        setActiveDateAnchor({
+            rect: span.getBoundingClientRect(),
+            dateId: span.getAttribute('data-dateid') ?? '',
+            date: span.getAttribute('data-date') ?? '',
+        })
+    }
+
+    /** Apply a newly chosen date back into block.content (and live DOM if focused). */
+    function handleInlineDateSelect(newDate: string) {
+        if (!activeDateAnchor) return
+        const { dateId } = activeDateAnchor
+        const display = formatInlineDate(newDate)
+
+        // 1. Update stored HTML via a temp DOM node (safe, no regex)
+        const tmp = document.createElement('div')
+        tmp.innerHTML = block.content
+        const storedSpan = tmp.querySelector(`[data-dateid="${dateId}"]`)
+        if (storedSpan) {
+            storedSpan.setAttribute('data-date', newDate)
+            storedSpan.textContent = display
+        }
+
+        // 2. Mirror update into the live contenteditable if it's focused
+        if (isFocused && ref.current) {
+            const editSpan = ref.current.querySelector(`[data-dateid="${dateId}"]`)
+            if (editSpan) {
+                editSpan.setAttribute('data-date', newDate)
+                editSpan.textContent = display
+            }
+        }
+
+        onUpdate(block.id, { content: tmp.innerHTML })
+        setActiveDateAnchor(null)
+    }
+
+    /** Intercept mousedown on date chips inside a contenteditable to prevent the
+     *  browser from repositioning the caret, and open the picker instead. */
+    function handleCEMouseDown(e: React.MouseEvent) {
+        const span = (e.target as HTMLElement).closest('[data-type="date"]') as HTMLElement | null
+        if (!span) return
+        e.preventDefault()
+        openDatePicker(span)
+    }
+
+    /** Intercept clicks on date chips in view-mode (dangerouslySetInnerHTML) divs. */
+    function handleViewDateClick(e: React.MouseEvent): boolean {
+        const span = (e.target as HTMLElement).closest('[data-type="date"]') as HTMLElement | null
+        if (!span) return false
+        e.stopPropagation()
+        openDatePicker(span)
+        return true
     }
 
     function handleBlockDelete() {
@@ -715,6 +783,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                 onInput={handleInput}
                 onPaste={handlePaste}
                 onFocus={() => onFocus(block.id)}
+                onMouseDown={handleCEMouseDown}
                 style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
             />
             {isFocused && !block.content && (
@@ -732,6 +801,8 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                     style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     onClick={(e) => {
                         const target = e.target as HTMLElement
+                        // Inline date chip — open picker without focusing the block
+                        if (handleViewDateClick(e)) return
                         // Handle hyperlink clicks — let the browser follow <a target="_blank"> natively
                         const anchor = target.closest('a[href]') as HTMLAnchorElement | null
                         if (anchor) {
@@ -808,6 +879,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                             <div ref={ref} contentEditable suppressContentEditableWarning
                                 className={cn("outline-none min-h-[1.4em] break-words w-full", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
                                 onKeyDown={handleKeyDown} onInput={handleInput} onPaste={handlePaste} onFocus={() => onFocus(block.id)}
+                                onMouseDown={handleCEMouseDown}
                                 style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
                             />
                             {isFocused && !block.content && (
@@ -822,6 +894,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                     className={cn("outline-none min-h-[1.4em] break-words w-full cursor-text", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}
                                     style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                                     onClick={(e) => {
+                                        if (handleViewDateClick(e)) return
                                         const target = e.target as HTMLElement
                                         if (target.matches('[data-mention]')) {
                                             e.stopPropagation()
@@ -867,6 +940,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                     onInput={handleBodyInput}
                                     onKeyDown={handleBodyKeyDown}
                                     onFocus={() => onFocus(block.id)}
+                                    onMouseDown={handleCEMouseDown}
                                     style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', display: isFocused ? undefined : 'none' }}
                                 />
                                 {!isFocused && (
@@ -879,6 +953,7 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                                         data-placeholder="Toggle content…"
                                         style={{ whiteSpace: 'pre-wrap' }}
                                         onClick={(e) => {
+                                            if (handleViewDateClick(e)) return
                                             const target = e.target as HTMLElement
                                             if (target.matches('[data-mention]')) {
                                                 e.stopPropagation()
@@ -1106,6 +1181,16 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                     </div>
                 )
             })()}
+
+            {/* Inline date picker portal — rendered when user clicks a date chip */}
+            {activeDateAnchor && (
+                <InlineDatePicker
+                    anchorRect={activeDateAnchor.rect}
+                    initialDate={activeDateAnchor.date}
+                    onSelect={handleInlineDateSelect}
+                    onClose={() => setActiveDateAnchor(null)}
+                />
+            )}
         </div>
     )
 }

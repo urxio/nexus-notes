@@ -108,4 +108,25 @@ body {
   .theme-transition {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
+
+  /* Inline date chip — rendered inside contenteditable and dangerouslySetInnerHTML */
+  .inline-date-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px 2px;
+    border-radius: 4px;
+    font-size: 0.875em;
+    background: hsl(var(--primary) / 0.10);
+    color: hsl(var(--primary));
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+    line-height: inherit;
+    vertical-align: baseline;
+    transition: background 0.15s;
+  }
+  .inline-date-chip:hover {
+    background: hsl(var(--primary) / 0.18);
+  }
 }
