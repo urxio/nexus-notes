@@ -45,7 +45,7 @@ export function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: st
     const displayDate = dateVal ? (() => {
         try {
             return new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+                month: 'long', day: 'numeric', year: 'numeric',
             })
         } catch { return dateVal }
     })() : 'Pick a date…'

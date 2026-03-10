@@ -114,19 +114,21 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    padding: 1px 7px 2px;
-    border-radius: 4px;
+    padding: 1px 8px 2px;
+    border-radius: 5px;
     font-size: 0.875em;
-    background: hsl(var(--primary) / 0.10);
+    background: hsl(var(--primary) / 0.12);
     color: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary) / 0.30);
     cursor: pointer;
     user-select: none;
-    font-weight: 500;
+    font-weight: 600;
     line-height: inherit;
     vertical-align: baseline;
-    transition: background 0.15s;
+    transition: background 0.15s, border-color 0.15s;
   }
   .inline-date-chip:hover {
-    background: hsl(var(--primary) / 0.18);
+    background: hsl(var(--primary) / 0.20);
+    border-color: hsl(var(--primary) / 0.50);
   }
 }

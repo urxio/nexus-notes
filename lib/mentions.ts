@@ -20,7 +20,7 @@ export function linkifyUrls(html: string): string {
 export function formatInlineDate(isoDate: string): string {
     try {
         return new Date(isoDate + 'T12:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            month: 'long', day: 'numeric', year: 'numeric',
         })
     } catch { return isoDate }
 }
