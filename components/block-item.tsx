@@ -543,15 +543,14 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
         const afterCursor = currentText.slice(cursorPos)
 
         if (type === 'date') {
-            // Convert the block to a date block with empty content so the picker
-            // auto-opens immediately, letting the user choose a date before confirming.
+            const todayIso = new Date().toISOString().split('T')[0]
             const residual = (beforeSlash + afterCursor).trim()
             if (activeIsBody) {
                 onUpdate(block.id, { expandedContent: residual })
-                setTimeout(() => onInsert(block.id, 'date', ''), 0)
+                setTimeout(() => onInsert(block.id, 'date', todayIso), 0)
             } else {
                 el.textContent = residual
-                onUpdate(block.id, { type: 'date', content: '' })
+                onUpdate(block.id, { type: 'date', content: todayIso })
                 setTimeout(() => onInsert(block.id, 'p', ''), 0)
             }
         } else {

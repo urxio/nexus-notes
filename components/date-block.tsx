@@ -32,12 +32,6 @@ export function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: st
         setViewMonth(d.getMonth())
     }, [dateVal])
 
-    // Auto-open picker on first mount when no date has been chosen yet
-    useEffect(() => {
-        if (!block.content) setOpen(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
-
     // Close on outside click
     useEffect(() => {
         if (!open) return
@@ -86,7 +80,7 @@ export function DateBlock({ block, onUpdate }: { block: Block; onUpdate: (id: st
     ]
 
     return (
-        <div ref={containerRef} className="relative inline-flex items-center gap-2 py-1.5 group select-none">
+        <div ref={containerRef} className="relative inline-flex items-center gap-2 py-1.5 group select-none" onClick={e => e.stopPropagation()}>
             <Calendar className="w-4 h-4 text-primary/70 flex-shrink-0" />
 
             <button
