@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from "react"
 import { useTheme } from "next-themes"
-import { Maximize2, Minimize2, Network } from "lucide-react"
+import { Maximize2, Minimize2, Network, Locate, Globe } from "lucide-react"
 
 import { Note, Person, GNode, GEdge } from "@/lib/types"
 import { buildGraph, tickSim } from "@/lib/graph"
@@ -28,6 +28,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         tooltip: 'rgba(13,17,27,0.92)', tooltipBorder: 'rgba(59,130,246,0.25)', tooltipText: '#7a94b8',
         header: '#2a3f5a', ctrl: '#0f1520', ctrlBorder: '#1a2a40', ctrlText: '#2a3f5a',
         ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#3b82f6',
+        ctrlActiveText: '#93c5fd', ctrlActiveBg: '#0d1f38', ctrlActiveBorder: '#3b82f6',
         empty: '#1a2a40',
     } : {
         bg: '#f4f6f9', dot: '#d1d9e6',
@@ -43,8 +44,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         tooltip: 'rgba(255,255,255,0.95)', tooltipBorder: '#dde3ec', tooltipText: '#475569',
         header: '#94a3b8', ctrl: '#ffffff', ctrlBorder: '#dde3ec', ctrlText: '#94a3b8',
         ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#93c5fd',
+        ctrlActiveText: '#1d4ed8', ctrlActiveBg: '#eff6ff', ctrlActiveBorder: '#93c5fd',
         empty: '#cbd5e1',
     }
+
     const containerRef = useRef<HTMLDivElement>(null)
     const [size, setSize] = useState({ w: 340, h: 500 })
     const sizeRef = useRef({ w: 340, h: 500 })
@@ -59,6 +62,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     const panRef = useRef({ active: false, sx: 0, sy: 0, spx: 0, spy: 0 })
     const dragRef = useRef<{ id: string; ox: number; oy: number } | null>(null)
 
+    // ── Local / global mode ────────────────────────────────────────────────
+    // Default: focus on the current page's connections only.
+    const [localMode, setLocalMode] = useState(true)
+
     useEffect(() => {
         const el = containerRef.current
         if (!el) return
@@ -67,7 +74,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                 const { width, height } = e.contentRect
                 if (width > 0 && height > 0) {
                     sizeRef.current = { w: width, h: height }
-                    // Wake up the simulation to adjust to the new dimensions
                     tickCountRef.current = Math.max(0, tickCountRef.current - 50)
                     requestAnimationFrame(() => setSize({ w: width, h: height }))
                 }
@@ -92,7 +98,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         const { nodes, edges } = buildGraph(notes, people, sizeRef.current.w, sizeRef.current.h, existingMap)
         nodesRef.current = nodes
         edgesRef.current = edges
-        // Only reset the simulation when structure changes significantly
         tickCountRef.current = 0
     }, [graphKey])
 
@@ -103,8 +108,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             if (alpha > 0) {
                 tickSim(nodesRef.current, edgesRef.current, size.w, size.h, alpha)
                 tickCountRef.current++
-                // Only re-render when simulation is actually ticking — avoids calling setState
-                // at 60fps when idle, which conflicted with concurrent-mode renders in React 18
                 forceRender(k => k + 1)
             }
             rafRef.current = requestAnimationFrame(animate)
@@ -113,6 +116,21 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
     }, [size])
 
+    // Auto-center on the active note when entering local mode
+    useEffect(() => {
+        if (!localMode) return
+        const timeout = setTimeout(() => {
+            const node = nodesRef.current.find(n => n.noteId === activeNoteId)
+            if (!node) { setPan({ x: 0, y: 0 }); setZoom(1); return }
+            setPan({
+                x: sizeRef.current.w / 2 - node.x,
+                y: sizeRef.current.h / 2 - node.y,
+            })
+            setZoom(1)
+        }, 60)
+        return () => clearTimeout(timeout)
+    }, [localMode, activeNoteId])
+
     function toGraph(screenX: number, screenY: number) {
         const rect = containerRef.current!.getBoundingClientRect()
         return { x: (screenX - rect.left - pan.x) / zoom, y: (screenY - rect.top - pan.y) / zoom }
@@ -120,7 +138,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
 
     function nodeAt(sx: number, sy: number): GNode | null {
         const { x, y } = toGraph(sx, sy)
-        for (const n of [...nodesRef.current].reverse()) {
+        for (const n of [...visibleNodes].reverse()) {
             const dx = n.x - x, dy = n.y - y
             if (Math.sqrt(dx * dx + dy * dy) < n.r + 4) return n
         }
@@ -168,28 +186,61 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         setZoom(z => Math.max(0.25, Math.min(4, z * (e.deltaY > 0 ? 0.9 : 1.1))))
     }
 
-    const nodes = nodesRef.current
-    const edges = edgesRef.current
-    const nodeMap = new Map(nodes.map(n => [n.id, n]))
+    const allNodes = nodesRef.current
+    const allEdges = edgesRef.current
+    const nodeMap = new Map(allNodes.map(n => [n.id, n]))
+
+    // ── Local mode filter: only active note + its 1-hop neighbours ──────────
+    let visibleNodes: GNode[]
+    let visibleEdges: GEdge[]
+
+    if (localMode && activeNoteId) {
+        const activeNode = allNodes.find(n => n.noteId === activeNoteId)
+        if (activeNode) {
+            // Direct edges from/to the active note
+            const directEdges = allEdges.filter(e => e.source === activeNode.id || e.target === activeNode.id)
+            const neighborIds = new Set<string>([activeNode.id])
+            for (const e of directEdges) {
+                neighborIds.add(e.source)
+                neighborIds.add(e.target)
+            }
+            visibleNodes = allNodes.filter(n => neighborIds.has(n.id))
+            // All edges that are fully contained within the visible set
+            visibleEdges = allEdges.filter(e => neighborIds.has(e.source) && neighborIds.has(e.target))
+        } else {
+            // Active note not yet in graph (e.g. no tags/links) — show nothing
+            visibleNodes = []
+            visibleEdges = []
+        }
+    } else {
+        visibleNodes = allNodes
+        visibleEdges = allEdges
+    }
 
     // Card half-dimensions
-    const NW = 64, NH = 19   // note card: ±64 wide, ±19 tall
-    const TW = 38, TH = 13   // tag pill:  ±38 wide, ±13 tall
+    const NW = 64, NH = 19
+    const TW = 38, TH = 13
 
-    // Return the port point on the edge of a node facing toward (tx, ty)
     function port(node: GNode, tx: number): { x: number; y: number } {
         const hw = node.type === 'note' ? NW : TW
         return { x: tx >= node.x ? node.x + hw : node.x - hw, y: node.y }
     }
 
-    // Smooth cubic bezier path between two port points
     function bezier(sp: { x: number; y: number }, tp: { x: number; y: number }): string {
         const cx = Math.max(55, Math.abs(tp.x - sp.x) * 0.55)
         const sx = tp.x >= sp.x ? 1 : -1
         return `M ${sp.x} ${sp.y} C ${sp.x + sx * cx} ${sp.y} ${tp.x - sx * cx} ${tp.y} ${tp.x} ${tp.y}`
     }
 
-    const hoveredNode = nodes.find(n => n.id === hovered)
+    const hoveredNode = visibleNodes.find(n => n.id === hovered)
+
+    // Count connections for the empty-state message
+    const activeHasConnections = localMode
+        ? (allEdges.some(e => {
+            const an = allNodes.find(n => n.noteId === activeNoteId)
+            return an && (e.source === an.id || e.target === an.id)
+        }))
+        : allNodes.length > 0
 
     return (
         <div
@@ -229,7 +280,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                 <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
 
                     {/* ── Edges ── */}
-                    {edges.map((edge, i) => {
+                    {visibleEdges.map((edge, i) => {
                         const s = nodeMap.get(edge.source), t = nodeMap.get(edge.target)
                         if (!s || !t) return null
                         const isActive = s.noteId === activeNoteId || t.noteId === activeNoteId
@@ -254,9 +305,9 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                     })}
 
                     {/* ── Tag nodes (pills) ── */}
-                    {nodes.filter(n => n.type === 'tag').map(node => {
+                    {visibleNodes.filter(n => n.type === 'tag').map(node => {
                         const isHov = node.id === hovered
-                        const connectedNotes = edges
+                        const connectedNotes = visibleEdges
                             .filter(e => e.target === node.id || e.source === node.id)
                             .map(e => e.source === node.id ? e.target : e.source)
                         const isActive = connectedNotes.some(nid => nodeMap.get(nid)?.noteId === activeNoteId)
@@ -289,7 +340,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                     })}
 
                     {/* ── Note nodes (cards) ── */}
-                    {nodes.filter(n => n.type === 'note').map(node => {
+                    {visibleNodes.filter(n => n.type === 'note').map(node => {
                         const isActive = node.noteId === activeNoteId
                         const isHov = node.id === hovered
 
@@ -347,25 +398,55 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                 </div>
             )}
 
-            {/* ── Header + expand toggle ── */}
+            {/* ── Header: title + local/all toggle + expand ── */}
             <div className="absolute top-3 left-3.5 right-3.5 flex items-center justify-between pointer-events-none">
                 <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                     <span className="text-[9px] font-semibold tracking-[.16em] uppercase"
                         style={{ color: T.header, fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>Graph</span>
                 </div>
-                <button
-                    className="pointer-events-auto w-6 h-6 rounded-md flex items-center justify-center transition-all"
-                    style={{ background: T.ctrl, border: `1px solid ${T.ctrlBorder}`, color: T.ctrlText }}
-                    onMouseEnter={e => { const el = e.currentTarget; el.style.color = T.ctrlHoverText; el.style.borderColor = T.ctrlHoverBorder }}
-                    onMouseLeave={e => { const el = e.currentTarget; el.style.color = T.ctrlText; el.style.borderColor = T.ctrlBorder }}
-                    onClick={e => { e.stopPropagation(); onToggleExpand() }}
-                    title={isExpanded ? 'Reduce graph' : 'Expand graph'}
-                >
-                    {isExpanded
-                        ? <Minimize2 className="w-3 h-3" />
-                        : <Maximize2 className="w-3 h-3" />}
-                </button>
+                <div className="flex items-center gap-1 pointer-events-auto">
+                    {/* Local / All toggle */}
+                    <button
+                        className="flex items-center gap-1 h-6 px-2 rounded-md text-[9px] font-semibold tracking-wider uppercase transition-all"
+                        style={{
+                            background: localMode ? T.ctrlActiveBg : T.ctrl,
+                            border: `1px solid ${localMode ? T.ctrlActiveBorder : T.ctrlBorder}`,
+                            color: localMode ? T.ctrlActiveText : T.ctrlText,
+                            fontFamily: 'ui-sans-serif,system-ui,sans-serif',
+                        }}
+                        onMouseEnter={e => {
+                            if (!localMode) {
+                                e.currentTarget.style.color = T.ctrlHoverText
+                                e.currentTarget.style.borderColor = T.ctrlHoverBorder
+                            }
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.color = localMode ? T.ctrlActiveText : T.ctrlText
+                            e.currentTarget.style.borderColor = localMode ? T.ctrlActiveBorder : T.ctrlBorder
+                        }}
+                        onClick={e => { e.stopPropagation(); setLocalMode(m => !m) }}
+                        title={localMode ? 'Show all pages in graph' : 'Focus on current page only'}
+                    >
+                        {localMode
+                            ? <><Locate className="w-2.5 h-2.5" />Local</>
+                            : <><Globe className="w-2.5 h-2.5" />All</>
+                        }
+                    </button>
+                    {/* Expand / minimize */}
+                    <button
+                        className="w-6 h-6 rounded-md flex items-center justify-center transition-all"
+                        style={{ background: T.ctrl, border: `1px solid ${T.ctrlBorder}`, color: T.ctrlText }}
+                        onMouseEnter={e => { const el = e.currentTarget; el.style.color = T.ctrlHoverText; el.style.borderColor = T.ctrlHoverBorder }}
+                        onMouseLeave={e => { const el = e.currentTarget; el.style.color = T.ctrlText; el.style.borderColor = T.ctrlBorder }}
+                        onClick={e => { e.stopPropagation(); onToggleExpand() }}
+                        title={isExpanded ? 'Reduce graph' : 'Expand graph'}
+                    >
+                        {isExpanded
+                            ? <Minimize2 className="w-3 h-3" />
+                            : <Maximize2 className="w-3 h-3" />}
+                    </button>
+                </div>
             </div>
 
             {/* ── Zoom controls ── */}
@@ -386,13 +467,32 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             </div>
 
             {/* ── Empty state ── */}
-            {nodes.length === 0 && (
+            {visibleNodes.length === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
                     <Network className="w-7 h-7" style={{ color: T.empty }} />
-                    <span className="text-[10px] font-medium tracking-widest uppercase"
+                    <span className="text-[10px] font-medium tracking-widest uppercase text-center px-6"
                         style={{ color: T.empty, fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
-                        Add tags to see connections
+                        {localMode
+                            ? 'No connections on this page'
+                            : 'Add tags to see connections'}
                     </span>
+                    {localMode && (
+                        <button
+                            className="pointer-events-auto mt-1 flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-semibold tracking-wider uppercase transition-all"
+                            style={{
+                                background: T.ctrl,
+                                border: `1px solid ${T.ctrlBorder}`,
+                                color: T.ctrlText,
+                                fontFamily: 'ui-sans-serif,system-ui,sans-serif',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.color = T.ctrlHoverText; e.currentTarget.style.borderColor = T.ctrlHoverBorder }}
+                            onMouseLeave={e => { e.currentTarget.style.color = T.ctrlText; e.currentTarget.style.borderColor = T.ctrlBorder }}
+                            onClick={() => setLocalMode(false)}
+                        >
+                            <Globe className="w-2.5 h-2.5" />
+                            View all pages
+                        </button>
+                    )}
                 </div>
             )}
         </div>
