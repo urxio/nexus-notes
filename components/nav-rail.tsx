@@ -50,7 +50,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
             style={{
                 backdropFilter: 'blur(40px)',
                 WebkitBackdropFilter: 'blur(40px)',
-                background: dark ? 'rgba(5,5,8,0.78)' : 'rgba(255,255,255,0.42)',
+                background: dark ? 'rgba(10,10,22,0.55)' : 'rgba(255,255,255,0.42)',
             }}
         >
             {/* Identity header */}
