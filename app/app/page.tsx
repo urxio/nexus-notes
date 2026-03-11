@@ -38,6 +38,7 @@ import { FormatToolbar } from "@/components/format-toolbar"
 import { BlockItem } from "@/components/block-item"
 import { NavRail } from "@/components/nav-rail"
 import { NoteListPanel } from "@/components/note-list-panel"
+import { ObjectBoardPanel } from "@/components/object-board-panel"
 import { NoteEditor } from "@/components/note-editor"
 import { Sidebar } from "@/components/sidebar"
 
@@ -98,6 +99,7 @@ export default function NotesPage() {
   const [folders, setFolders] = useState<Folder[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [trashView, setTrashView] = useState(false)
+  const [selectedObjectTypeId, setSelectedObjectTypeId] = useState<string | null>(null)
   // Navigation history for chip-based page traversal (breadcrumb trail)
   const [navStack, setNavStack] = useState<string[]>([])
 
@@ -470,7 +472,7 @@ export default function NotesPage() {
               <NavRail
                 folders={folders}
                 selectedFolderId={selectedFolderId}
-                onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false) }}
+                onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false); setSelectedObjectTypeId(null) }}
                 people={people}
                 objectTypes={customObjectTypes}
                 deletedObjectTypes={deletedObjectTypes}
@@ -485,36 +487,65 @@ export default function NotesPage() {
                 onSelect={id => { setActiveId(id); setNavStack([]) }}
                 allTags={allTags}
                 activeTag={activeTag}
-                onTagFilter={tag => { setActiveTag(tag); setTrashView(false) }}
+                onTagFilter={tag => { setActiveTag(tag); setTrashView(false); setSelectedObjectTypeId(null) }}
                 graphOpen={graphOpen}
                 onToggleGraph={() => setGraphOpen(p => !p)}
                 notes={liveNotes}
                 onToggleSidebar={() => setSidebarOpen(false)}
                 trashCount={trashCount}
                 trashView={trashView}
-                onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null) }}
+                onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null); setSelectedObjectTypeId(null) }}
+                selectedObjectTypeId={selectedObjectTypeId}
+                onSelectObjectType={typeId => {
+                  setSelectedObjectTypeId(typeId)
+                  setTrashView(false)
+                  setSelectedFolderId(null)
+                  setActiveTag(null)
+                }}
               />
             </div>
 
-            {/* Col 2: Note List card (resizable) */}
+            {/* Col 2: Object Board or Note List (resizable) */}
             <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06]"
               style={{ width: col2Width, transition: col2ResizingRef.current ? 'none' : 'width 80ms ease' }}>
-              <NoteListPanel
-                notes={panelNotes}
-                folders={folders}
-                selectedFolderId={selectedFolderId}
-                activeTag={activeTag}
-                activeId={activeId}
-                onSelect={id => { setActiveId(id); setNavStack([]) }}
-                onCreate={createNote}
-                search={search}
-                onSearch={setSearch}
-                onMoveNote={moveNoteToFolder}
-                onDeleteNote={deleteNote}
-                isTrash={trashView}
-                onRestoreNote={restoreNote}
-                onPermanentDeleteNote={permanentlyDeleteNote}
-              />
+              {(() => {
+                const allTypes = [...BUILTIN_OBJECT_TYPES, ...customObjectTypes]
+                const boardType = selectedObjectTypeId ? allTypes.find(t => t.id === selectedObjectTypeId) : null
+                if (boardType) {
+                  const boardObjects = people
+                    .filter(p => (p.typeId ?? 'person') === boardType.id)
+                    .filter(p => !p.noteId || liveNotes.some(n => n.id === p.noteId))
+                  return (
+                    <ObjectBoardPanel
+                      objectType={boardType}
+                      objects={boardObjects}
+                      notes={liveNotes}
+                      people={people}
+                      activeId={activeId}
+                      onSelectObject={id => { setActiveId(id); setNavStack([]) }}
+                      onCreateObject={(name, typeId) => createPerson(name, typeId)}
+                    />
+                  )
+                }
+                return (
+                  <NoteListPanel
+                    notes={panelNotes}
+                    folders={folders}
+                    selectedFolderId={selectedFolderId}
+                    activeTag={activeTag}
+                    activeId={activeId}
+                    onSelect={id => { setActiveId(id); setNavStack([]) }}
+                    onCreate={createNote}
+                    search={search}
+                    onSearch={setSearch}
+                    onMoveNote={moveNoteToFolder}
+                    onDeleteNote={deleteNote}
+                    isTrash={trashView}
+                    onRestoreNote={restoreNote}
+                    onPermanentDeleteNote={permanentlyDeleteNote}
+                  />
+                )
+              })()}
             </div>
 
             {/* Col 2→3 resize handle */}

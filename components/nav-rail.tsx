@@ -35,9 +35,11 @@ interface NavRailProps {
     trashCount: number
     trashView: boolean
     onSelectTrash: () => void
+    selectedObjectTypeId?: string | null
+    onSelectObjectType?: (typeId: string) => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme === 'dark'
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -208,26 +210,44 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                     .filter(p => !p.noteId || notes.some(n => n.id === p.noteId && !n.trashedAt))
                                     return (
                                         <div key={objType.id}>
-                                            {/* Type header — click to collapse/expand, right-click for context menu */}
-                                            <button
-                                                className="w-full flex items-center gap-1.5 px-1.5 py-1 mb-1 bg-slate-50 dark:bg-zinc-800/50 rounded-md border border-slate-100 dark:border-zinc-700/50 hover:bg-slate-100 dark:hover:bg-zinc-700/60 transition-colors text-left"
-                                                onClick={() => setCollapsedTypes(prev => {
-                                                    const next = new Set(prev)
-                                                    next.has(objType.id) ? next.delete(objType.id) : next.add(objType.id)
-                                                    return next
-                                                })}
+                                            {/* Type header — label click opens board view, chevron toggles collapse */}
+                                            <div
+                                                className={cn(
+                                                    "w-full flex items-center gap-1.5 px-1.5 py-1 mb-1 rounded-md border transition-colors",
+                                                    selectedObjectTypeId === objType.id
+                                                        ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/60"
+                                                        : "bg-slate-50 dark:bg-zinc-800/50 border-slate-100 dark:border-zinc-700/50"
+                                                )}
                                                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'objectType', id: objType.id }) }}
                                             >
-                                                <NoteIcon iconName={objType.emoji} className="w-3.5 h-3.5 text-[#6b7280] flex-shrink-0" />
-                                                <span className="font-mono font-semibold text-[9px] uppercase tracking-[0.12em] text-[#374151] dark:text-zinc-300 flex-1">{objType.name}</span>
-                                                {collapsedTypes.has(objType.id) && typeObjects.length > 0 && (
-                                                    <span className="font-mono text-[9px] text-[#d1d5db] dark:text-zinc-600 tabular-nums mr-0.5">{typeObjects.length}</span>
-                                                )}
-                                                <ChevronRight className={cn(
-                                                    "w-3 h-3 text-[#d1d5db] dark:text-zinc-600 transition-transform duration-150 flex-shrink-0",
-                                                    !collapsedTypes.has(objType.id) && "rotate-90"
-                                                )} />
-                                            </button>
+                                                {/* Clickable label area — opens board */}
+                                                <button
+                                                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                                                    onClick={() => onSelectObjectType?.(objType.id)}
+                                                >
+                                                    <NoteIcon iconName={objType.emoji} className={cn("w-3.5 h-3.5 flex-shrink-0", selectedObjectTypeId === objType.id ? "text-indigo-600 dark:text-indigo-400" : "text-[#6b7280]")} />
+                                                    <span className={cn("font-mono font-semibold text-[9px] uppercase tracking-[0.12em] flex-1 truncate",
+                                                        selectedObjectTypeId === objType.id ? "text-indigo-700 dark:text-indigo-300" : "text-[#374151] dark:text-zinc-300"
+                                                    )}>{objType.name}</span>
+                                                    {collapsedTypes.has(objType.id) && typeObjects.length > 0 && (
+                                                        <span className="font-mono text-[9px] text-[#d1d5db] dark:text-zinc-600 tabular-nums">{typeObjects.length}</span>
+                                                    )}
+                                                </button>
+                                                {/* Chevron — toggles collapse only */}
+                                                <button
+                                                    className="flex-shrink-0 p-0.5 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                                    onClick={() => setCollapsedTypes(prev => {
+                                                        const next = new Set(prev)
+                                                        next.has(objType.id) ? next.delete(objType.id) : next.add(objType.id)
+                                                        return next
+                                                    })}
+                                                >
+                                                    <ChevronRight className={cn(
+                                                        "w-3 h-3 text-[#d1d5db] dark:text-zinc-600 transition-transform duration-150",
+                                                        !collapsedTypes.has(objType.id) && "rotate-90"
+                                                    )} />
+                                                </button>
+                                            </div>
                                             {!collapsedTypes.has(objType.id) && (
                                             <div className="space-y-0.5">
                                                 {typeObjects.map(person => (
