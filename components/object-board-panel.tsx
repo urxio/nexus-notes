@@ -116,36 +116,44 @@ export function ObjectBoardPanel({
     const [settingsOpen, setSettingsOpen] = useState(false)
     const settingsRef = useRef<HTMLDivElement>(null)
 
-    // Collect all known property names: defaults + any extras on existing objects
+    // Canonical property names for this type ONLY — never mix in props from other types
     const allPropNames = useMemo(() => {
-        const names = new Set(defaultPropertiesForType(objectType.id).map(p => p.name))
-        for (const obj of objects) {
-            const note = notes.find(n => n.id === obj.noteId)
-            note?.properties?.forEach(p => names.add(p.name))
-        }
-        return Array.from(names)
-    }, [objectType.id, objects, notes])
+        return defaultPropertiesForType(objectType.id).map(p => p.name)
+    }, [objectType.id])
 
     // Persisted visible prop names per type — default: all visible
+    // Always filter against allPropNames to strip any stale cross-type names from localStorage
     const [visiblePropNames, setVisiblePropNames] = useState<string[]>(() => {
-        if (typeof window === 'undefined') return allPropNames
+        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
+        if (typeof window === 'undefined') return canonical
         try {
             const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            if (raw) return JSON.parse(raw) as string[]
+            if (raw) {
+                const saved = JSON.parse(raw) as string[]
+                const filtered = saved.filter(n => canonical.includes(n))
+                return filtered.length > 0 ? filtered : canonical
+            }
         } catch {}
-        return allPropNames
+        return canonical
     })
 
     useEffect(() => {
         try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(visiblePropNames)) } catch {}
     }, [visiblePropNames, objectType.id])
 
-    // Re-sync when objectType changes (switching types)
+    // Re-sync when objectType changes (switching types) — always filter to canonical names
     useEffect(() => {
+        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
         try {
             const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            setVisiblePropNames(raw ? JSON.parse(raw) : allPropNames)
-        } catch { setVisiblePropNames(allPropNames) }
+            if (raw) {
+                const saved = JSON.parse(raw) as string[]
+                const filtered = saved.filter(n => canonical.includes(n))
+                setVisiblePropNames(filtered.length > 0 ? filtered : canonical)
+            } else {
+                setVisiblePropNames(canonical)
+            }
+        } catch { setVisiblePropNames(canonical) }
     }, [objectType.id])
 
     // Close settings on outside click
@@ -266,13 +274,15 @@ export function ObjectBoardPanel({
                         {objects.map(obj => {
                             const note = notes.find(n => n.id === obj.noteId)
                             const isActive = note?.id === activeId
-                            // Show all toggled-on properties (by name), merging defaults with note props
+                            // Show all toggled-on properties (by name), restricted to this type's canonical props
                             const noteProps = note?.properties ?? []
-                            const visibleProps = visiblePropNames.map(name => {
-                                const found = noteProps.find(p => p.name === name)
-                                // Fall back to a default empty prop so the row still shows
-                                return found ?? { id: name, name, type: 'text' as const, value: null }
-                            })
+                            const visibleProps = visiblePropNames
+                                .filter(name => allPropNames.includes(name)) // strict type guard — never show other-type props
+                                .map(name => {
+                                    const found = noteProps.find(p => p.name === name)
+                                    // Fall back to a default empty prop so the row still shows
+                                    return found ?? { id: name, name, type: 'text' as const, value: null }
+                                })
 
                             return (
                                 <button key={obj.id}
