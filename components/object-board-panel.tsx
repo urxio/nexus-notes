@@ -173,7 +173,9 @@ export function ObjectBoardPanel({
             <div className="px-4 pt-5 pb-3 border-b border-[#f3f4f6] dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base leading-none">{objectType.emoji}</span>
+                        <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                            <NoteIcon iconName={objectType.emoji} className="w-4 h-4 text-[#6b7280] dark:text-zinc-400" />
+                        </div>
                         <h2 className="font-bold text-[15px] text-[#111827] dark:text-zinc-100 tracking-tight truncate">{objectType.name}</h2>
                         <span className="text-[11px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums flex-shrink-0">{objects.length}</span>
                     </div>
@@ -252,8 +254,8 @@ export function ObjectBoardPanel({
             <ScrollArea className="flex-1">
                 {objects.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-[#f9fafb] dark:bg-zinc-800 flex items-center justify-center border border-[#e5e7eb] dark:border-zinc-700 text-2xl">
-                            {objectType.emoji}
+                        <div className="w-12 h-12 rounded-2xl bg-[#f9fafb] dark:bg-zinc-800 flex items-center justify-center border border-[#e5e7eb] dark:border-zinc-700">
+                            <NoteIcon iconName={objectType.emoji} className="w-6 h-6 text-[#d1d5db] dark:text-zinc-600" />
                         </div>
                         <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">
                             No {objectType.name.toLowerCase()}s yet
@@ -264,14 +266,13 @@ export function ObjectBoardPanel({
                         {objects.map(obj => {
                             const note = notes.find(n => n.id === obj.noteId)
                             const isActive = note?.id === activeId
-                            // Only show properties that are toggled visible and have a value
-                            const visibleProps = (note?.properties ?? []).filter(p =>
-                                visiblePropNames.includes(p.name)
-                            )
-                            const hasAnyValue = visibleProps.some(p =>
-                                p.value !== null && p.value !== undefined && p.value !== '' &&
-                                !(Array.isArray(p.value) && p.value.length === 0)
-                            )
+                            // Show all toggled-on properties (by name), merging defaults with note props
+                            const noteProps = note?.properties ?? []
+                            const visibleProps = visiblePropNames.map(name => {
+                                const found = noteProps.find(p => p.name === name)
+                                // Fall back to a default empty prop so the row still shows
+                                return found ?? { id: name, name, type: 'text' as const, value: null }
+                            })
 
                             return (
                                 <button key={obj.id}
@@ -304,21 +305,23 @@ export function ObjectBoardPanel({
                                         )}
                                     </div>
 
-                                    {/* Property rows */}
-                                    {hasAnyValue && (
+                                    {/* Property rows — always shown when toggled on */}
+                                    {visibleProps.length > 0 && (
                                         <div className="pl-9 space-y-1 mt-2">
                                             {visibleProps.map(prop => {
                                                 const isEmpty =
                                                     prop.value === null || prop.value === undefined || prop.value === '' ||
                                                     (Array.isArray(prop.value) && prop.value.length === 0)
-                                                if (isEmpty) return null
                                                 return (
                                                     <div key={prop.id} className="flex items-start gap-2">
                                                         <span className="text-[10px] font-medium text-[#9ca3af] dark:text-zinc-600 flex-shrink-0 w-[60px] truncate pt-0.5">
                                                             {prop.name}
                                                         </span>
                                                         <div className="flex-1 min-w-0">
-                                                            <PropValue prop={prop} people={people} />
+                                                            {isEmpty
+                                                                ? <span className="text-[11px] text-[#d1d5db] dark:text-zinc-700">—</span>
+                                                                : <PropValue prop={prop} people={people} />
+                                                            }
                                                         </div>
                                                     </div>
                                                 )
