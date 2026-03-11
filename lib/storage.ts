@@ -1,4 +1,4 @@
-import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem } from './types'
+import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem, NoteProperty, PropertyType } from './types'
 import { SEED_NOTES, PERSON_EMOJIS, NOTE_ICON_KEYS, NOTE_COLORS } from './constants'
 
 export const STORAGE_KEY = 'locus-notes-v1'
@@ -98,6 +98,82 @@ export function loadNotes(): Note[] {
 export function saveNotes(notes: Note[]) {
     if (typeof window === 'undefined') return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)) } catch { }
+}
+
+// ── Default properties per built-in object type ────────────────────────────────
+
+export function defaultPropertiesForType(typeId: string): NoteProperty[] {
+    function mkProp(name: string, type: PropertyType): NoteProperty {
+        return {
+            id: crypto.randomUUID(),
+            name,
+            type,
+            value: type === 'checkbox' ? false : type === 'multi_select' ? [] : null,
+        }
+    }
+    function mkSelect(name: string, opts: { label: string; color: string }[]): NoteProperty {
+        return {
+            id: crypto.randomUUID(),
+            name,
+            type: 'select',
+            value: null,
+            options: opts.map(o => ({ id: crypto.randomUUID(), label: o.label, color: o.color })),
+        }
+    }
+
+    switch (typeId) {
+        case 'person':
+            return [
+                mkProp('Role',     'text'),
+                mkProp('Email',    'email'),
+                mkProp('Phone',    'phone'),
+                mkProp('Company',  'text'),
+                mkProp('LinkedIn', 'url'),
+            ]
+        case 'task':
+            return [
+                mkSelect('Status', [
+                    { label: 'Not Started', color: '#6b7280' },
+                    { label: 'In Progress', color: '#3b82f6' },
+                    { label: 'Done',        color: '#22c55e' },
+                    { label: 'Blocked',     color: '#ef4444' },
+                ]),
+                mkSelect('Priority', [
+                    { label: 'Low',    color: '#22c55e' },
+                    { label: 'Medium', color: '#f59e0b' },
+                    { label: 'High',   color: '#ef4444' },
+                    { label: 'Urgent', color: '#8b5cf6' },
+                ]),
+                mkProp('Due Date',  'date'),
+                mkProp('Assignee',  'person'),
+            ]
+        case 'project':
+            return [
+                mkSelect('Status', [
+                    { label: 'Planning',   color: '#8b5cf6' },
+                    { label: 'Active',     color: '#3b82f6' },
+                    { label: 'On Hold',    color: '#f59e0b' },
+                    { label: 'Completed',  color: '#22c55e' },
+                ]),
+                mkProp('Start Date', 'date'),
+                mkProp('End Date',   'date'),
+                mkProp('Owner',      'person'),
+            ]
+        case 'meeting':
+            return [
+                mkProp('Date',      'date'),
+                mkSelect('Status', [
+                    { label: 'Scheduled',   color: '#6b7280' },
+                    { label: 'In Progress', color: '#3b82f6' },
+                    { label: 'Done',        color: '#22c55e' },
+                    { label: 'Cancelled',   color: '#ef4444' },
+                ]),
+                mkProp('Location',  'text'),
+                mkProp('Attendees', 'person'),
+            ]
+        default:
+            return []
+    }
 }
 
 export function mkNote(emoji: string = 'FileText'): Note {

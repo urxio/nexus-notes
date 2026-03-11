@@ -26,7 +26,7 @@ import {
 
 import { BlockType, Block, Note, Folder, TreeItem, Person, ObjectType, GNode, GEdge } from "@/lib/types"
 import { NOTE_COLORS, NOTE_ICON_KEYS, BLOCK_PLACEHOLDERS, SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, PERSON_EMOJIS } from "@/lib/constants"
-import { loadFolders, saveFolders, loadObjectTypes, saveObjectTypes, loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople, mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock, normalizeBlocks, buildTree } from "@/lib/storage"
+import { loadFolders, saveFolders, loadObjectTypes, saveObjectTypes, loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople, mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock, normalizeBlocks, buildTree, defaultPropertiesForType } from "@/lib/storage"
 import { buildGraph, tickSim } from "@/lib/graph"
 import { NoteIcon } from "@/components/note-icon"
 import { BLOCK_ICONS } from "@/components/block-icons"
@@ -203,6 +203,7 @@ export default function NotesPage() {
       emoji: noteEmoji,
       blocks: [{ id: crypto.randomUUID(), type: 'p', content: '' }],
       tags: [],
+      properties: defaultPropertiesForType(typeId),
     }
     const person: Person = { ...mkPerson(name, noteEmoji), noteId: personNote.id, typeId }
       // Store personId on the note so we can identify it as a person page
