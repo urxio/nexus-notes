@@ -1038,10 +1038,24 @@ export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSel
                     </div>
                 ) : block.type === 'todo' ? (
                     <div className="flex items-center gap-2 flex-1">
-                        <input type="checkbox" checked={block.checked ?? false}
-                            onChange={() => onUpdate(block.id, { checked: !block.checked })}
-                            className="rounded cursor-pointer accent-primary flex-shrink-0 w-4 h-4"
-                        />
+                        {/* Custom circular checkbox */}
+                        <button
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => onUpdate(block.id, { checked: !block.checked })}
+                            className={cn(
+                                "w-[18px] h-[18px] rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all",
+                                block.checked
+                                    ? "bg-indigo-500 border-indigo-500"
+                                    : "border-[#d1d5db] dark:border-zinc-600 hover:border-indigo-400 dark:hover:border-indigo-500"
+                            )}
+                        >
+                            {block.checked && (
+                                <svg viewBox="0 0 10 8" className="w-2.5 h-2" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="1,4 3.5,7 9,1" />
+                                </svg>
+                            )}
+                        </button>
                         <div className="relative flex-1">
                             <div ref={ref} contentEditable suppressContentEditableWarning
                                 className={cn("outline-none min-h-[1.4em] break-words w-full", 'text-base leading-relaxed', block.checked && 'line-through text-muted-foreground/60')}

@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { createPortal } from "react-dom"
-import { Plus, Search, FileText, Trash2 } from "lucide-react"
+import { Plus, Search, FileText, Trash2, RotateCcw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Note, Folder } from "@/lib/types"
@@ -18,14 +18,19 @@ interface NoteListPanelProps {
     onSearch: (q: string) => void
     onMoveNote: (noteId: string, folderId: string | null) => void
     onDeleteNote: (noteId: string) => void
+    isTrash?: boolean
+    onRestoreNote?: (noteId: string) => void
+    onPermanentDeleteNote?: (noteId: string) => void
 }
 
-export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote }: NoteListPanelProps) {
+export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote, isTrash, onRestoreNote, onPermanentDeleteNote }: NoteListPanelProps) {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
-    const label = selectedFolderId
-        ? (folders.find(f => f.id === selectedFolderId)?.name ?? 'Folder')
-        : activeTag ? `#${activeTag}` : 'All Notes'
+    const label = isTrash
+        ? 'Trash'
+        : selectedFolderId
+            ? (folders.find(f => f.id === selectedFolderId)?.name ?? 'Folder')
+            : activeTag ? `#${activeTag}` : 'All Notes'
 
     function formatDate(ts: number): string {
         const diff = Date.now() - ts
@@ -51,10 +56,12 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                     <h2 className="font-bold text-[15px] text-[#111827] dark:text-zinc-100 tracking-tight truncate">{label}</h2>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                         <span className="text-[11px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums">{notes.length}</span>
-                        <button onClick={onCreate} title="New note"
-                            className="w-7 h-7 rounded-xl bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center transition-colors shadow-sm">
-                            <Plus className="w-3.5 h-3.5 text-white" />
-                        </button>
+                        {!isTrash && (
+                            <button onClick={onCreate} title="New note"
+                                className="w-7 h-7 rounded-xl bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center transition-colors shadow-sm">
+                                <Plus className="w-3.5 h-3.5 text-white" />
+                            </button>
+                        )}
                     </div>
                 </div>
                 {/* Search */}
@@ -137,29 +144,49 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                     <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
                     <div className="fixed z-50 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-[#e5e7eb] dark:border-zinc-800 py-2 min-w-[200px] overflow-hidden"
                         style={{ left: ctxMenu.x, top: ctxMenu.y }}>
-                        <div className="px-4 py-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700 mb-1">
-                            Move to folder
-                        </div>
-                        <button onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
-                            className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-[#374151] dark:text-zinc-400 transition-colors">
-                            <FileText className="w-3.5 h-3.5 text-[#d1d5db] flex-shrink-0" />
-                            Root (no folder)
-                        </button>
-                        {folders.map(folder => (
-                            <button key={folder.id}
-                                onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
-                                className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-[#374151] dark:text-zinc-400 transition-colors">
-                                <NoteIcon iconName="Folder" className="w-3 h-3 text-[11px] flex-shrink-0 text-muted-foreground" />
-                                <span className="truncate">{folder.name}</span>
-                            </button>
-                        ))}
-                        {folders.length === 0 && <p className="px-4 py-2 text-[11px] text-[#d1d5db] italic">No folders yet</p>}
-                        <div className="h-px bg-[#f3f4f6] dark:bg-zinc-800 my-1 mx-2" />
-                        <button onClick={() => { onDeleteNote(ctxMenu.noteId); setCtxMenu(null) }}
-                            className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
-                            <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
-                            Delete note
-                        </button>
+                        {isTrash ? (
+                            /* ── Trash context menu ── */
+                            <>
+                                <button onClick={() => { onRestoreNote?.(ctxMenu.noteId); setCtxMenu(null) }}
+                                    className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 transition-colors">
+                                    <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
+                                    Restore note
+                                </button>
+                                <div className="h-px bg-[#f3f4f6] dark:bg-zinc-800 my-1 mx-2" />
+                                <button onClick={() => { onPermanentDeleteNote?.(ctxMenu.noteId); setCtxMenu(null) }}
+                                    className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                    Delete forever
+                                </button>
+                            </>
+                        ) : (
+                            /* ── Normal context menu ── */
+                            <>
+                                <div className="px-4 py-1.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700 mb-1">
+                                    Move to folder
+                                </div>
+                                <button onClick={() => { onMoveNote(ctxMenu.noteId, null); setCtxMenu(null) }}
+                                    className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-[#374151] dark:text-zinc-400 transition-colors">
+                                    <FileText className="w-3.5 h-3.5 text-[#d1d5db] flex-shrink-0" />
+                                    Root (no folder)
+                                </button>
+                                {folders.map(folder => (
+                                    <button key={folder.id}
+                                        onClick={() => { onMoveNote(ctxMenu.noteId, folder.id); setCtxMenu(null) }}
+                                        className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-[#374151] dark:text-zinc-400 transition-colors">
+                                        <NoteIcon iconName="Folder" className="w-3 h-3 text-[11px] flex-shrink-0 text-muted-foreground" />
+                                        <span className="truncate">{folder.name}</span>
+                                    </button>
+                                ))}
+                                {folders.length === 0 && <p className="px-4 py-2 text-[11px] text-[#d1d5db] italic">No folders yet</p>}
+                                <div className="h-px bg-[#f3f4f6] dark:bg-zinc-800 my-1 mx-2" />
+                                <button onClick={() => { onDeleteNote(ctxMenu.noteId); setCtxMenu(null) }}
+                                    className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-red-500 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                    Move to trash
+                                </button>
+                            </>
+                        )}
                     </div>
                 </>,
                 document.body

@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { createPortal } from "react-dom"
-import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight } from "lucide-react"
+import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -32,9 +32,12 @@ interface NavRailProps {
     onToggleGraph: () => void
     notes: Note[]
     onToggleSidebar?: () => void
+    trashCount: number
+    trashView: boolean
+    onSelectTrash: () => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme === 'dark'
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -100,6 +103,29 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                         </div>
                         <span className="flex-1 text-[13px]">All Notes</span>
                         <span className="text-[10px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums">{notes.length}</span>
+                    </button>
+
+                    {/* Trash */}
+                    <button
+                        onClick={onSelectTrash}
+                        className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all text-left",
+                            trashView
+                                ? "bg-red-50 dark:bg-zinc-800 text-red-600 dark:text-red-400 font-semibold"
+                                : "text-[#374151] dark:text-zinc-400 font-medium hover:bg-slate-50 dark:hover:bg-zinc-800/50 hover:text-[#1a1a2e] dark:hover:text-zinc-200"
+                        )}
+                    >
+                        <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+                            trashView ? "bg-red-100 dark:bg-red-950/50" : "bg-slate-100 dark:bg-zinc-700/60"
+                        )}>
+                            <Trash2 className={cn("w-3.5 h-3.5 transition-colors",
+                                trashView ? "text-red-500 dark:text-red-400" : "text-[#9ca3af] dark:text-zinc-500"
+                            )} />
+                        </div>
+                        <span className="flex-1 text-[13px]">Trash</span>
+                        {trashCount > 0 && (
+                            <span className="text-[10px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums">{trashCount}</span>
+                        )}
                     </button>
 
                     {/* Folders */}

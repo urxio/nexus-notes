@@ -88,6 +88,7 @@ export default function NotesPage() {
   const [deleteTypePrompt, setDeleteTypePrompt] = useState<string | null>(null)
   const [folders, setFolders] = useState<Folder[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [trashView, setTrashView] = useState(false)
   // Navigation history for chip-based page traversal (breadcrumb trail)
   const [navStack, setNavStack] = useState<string[]>([])
 
@@ -206,8 +207,23 @@ export default function NotesPage() {
     return person
   }
 
+  // Live (non-trashed) notes — used for graph, tags, people, etc.
+  const liveNotes = useMemo(() => notes.filter(n => !n.trashedAt), [notes])
+  const trashCount = useMemo(() => notes.filter(n => !!n.trashedAt).length, [notes])
+
   const panelNotes = useMemo(() => {
-    let result = notes
+    if (trashView) {
+      const trashed = notes.filter(n => !!n.trashedAt)
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return trashed.filter(n =>
+          n.title.toLowerCase().includes(q) ||
+          n.blocks.some(b => b.content.toLowerCase().includes(q))
+        ).sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
+      }
+      return [...trashed].sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0))
+    }
+    let result = liveNotes
     if (selectedFolderId !== null) {
       result = result.filter(n => (n.folderId ?? null) === selectedFolderId)
     } else if (activeTag) {
@@ -222,15 +238,15 @@ export default function NotesPage() {
       )
     }
     return [...result].sort((a, b) => b.updatedAt - a.updatedAt)
-  }, [notes, selectedFolderId, activeTag, search])
+  }, [notes, liveNotes, trashView, selectedFolderId, activeTag, search])
 
   const activeNote = notes.find(n => n.id === activeId) ?? null
 
   const allTags = useMemo(() => {
     const set = new Set<string>()
-    notes.forEach(n => n.tags.forEach(t => set.add(t)))
+    liveNotes.forEach(n => n.tags.forEach(t => set.add(t)))
     return [...set]
-  }, [notes])
+  }, [liveNotes])
 
   function createNote() {
     const note = { ...mkNote('FileText'), folderId: selectedFolderId }
@@ -336,11 +352,26 @@ export default function NotesPage() {
   }
 
   function deleteNote(id: string) {
-    // Compute outside updater — calling setActiveId inside setNotes updater triggers
-    // "setState during render" error in React 18 concurrent mode
+    // Soft-delete: move to trash rather than destroy immediately
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, trashedAt: Date.now() } : n))
+    if (activeId === id) {
+      const nextNote = notes.find(n => n.id !== id && !n.trashedAt)
+      setActiveId(nextNote?.id ?? null)
+      setNavStack([])
+    }
+  }
+
+  function restoreNote(id: string) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, trashedAt: undefined } : n))
+  }
+
+  function permanentlyDeleteNote(id: string) {
+    // Also clean up linked person if any
+    const person = people.find(p => p.noteId === id)
+    if (person) setPeople(prev => prev.filter(p => p.id !== person.id))
     const updatedNotes = notes.filter(n => n.id !== id)
     setNotes(updatedNotes)
-    if (activeId === id) { setActiveId(updatedNotes[0]?.id ?? null); setNavStack([]) }
+    if (activeId === id) { setActiveId(null); setNavStack([]) }
   }
 
   // ─── Folder CRUD ────────────────────────────────────────────────────────────
@@ -398,7 +429,7 @@ export default function NotesPage() {
               <NavRail
                 folders={folders}
                 selectedFolderId={selectedFolderId}
-                onSelectFolder={setSelectedFolderId}
+                onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false) }}
                 people={people}
                 objectTypes={customObjectTypes}
                 deletedObjectTypes={deletedObjectTypes}
@@ -413,11 +444,14 @@ export default function NotesPage() {
                 onSelect={id => { setActiveId(id); setNavStack([]) }}
                 allTags={allTags}
                 activeTag={activeTag}
-                onTagFilter={setActiveTag}
+                onTagFilter={tag => { setActiveTag(tag); setTrashView(false) }}
                 graphOpen={graphOpen}
                 onToggleGraph={() => setGraphOpen(p => !p)}
-                notes={notes}
+                notes={liveNotes}
                 onToggleSidebar={() => setSidebarOpen(false)}
+                trashCount={trashCount}
+                trashView={trashView}
+                onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null) }}
               />
             </div>
 
@@ -435,6 +469,9 @@ export default function NotesPage() {
                 onSearch={setSearch}
                 onMoveNote={moveNoteToFolder}
                 onDeleteNote={deleteNote}
+                isTrash={trashView}
+                onRestoreNote={restoreNote}
+                onPermanentDeleteNote={permanentlyDeleteNote}
               />
             </div>
           </>
@@ -504,7 +541,7 @@ export default function NotesPage() {
                 style={{ width: graphWidth, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}>
                 <div className="w-full h-full">
                   <GraphPanel
-                    notes={notes}
+                    notes={liveNotes}
                     people={people}
                     activeNoteId={activeId}
                     onSelectNote={id => { setActiveId(id); setNavStack([]) }}

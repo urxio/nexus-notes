@@ -44,6 +44,7 @@ export interface Note {
     updatedAt: number
     personId?: string
     folderId?: string | null
+    trashedAt?: number   // set when note is moved to trash; absent (or undefined) = live note
 }
 
 export interface Folder {
