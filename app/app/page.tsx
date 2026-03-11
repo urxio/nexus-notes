@@ -450,7 +450,7 @@ export default function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-screen overflow-hidden p-3 gap-1"
+      <div className="flex h-screen overflow-hidden p-3 gap-3"
         style={{ background: mounted && resolvedTheme === 'dark' ? DARK_BG : LIGHT_BG }}>
 
         {sidebarOpen && (
