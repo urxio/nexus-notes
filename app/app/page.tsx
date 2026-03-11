@@ -73,6 +73,8 @@ export default function NotesPage() {
   const [deleteTypePrompt, setDeleteTypePrompt] = useState<string | null>(null)
   const [folders, setFolders] = useState<Folder[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Navigation history for chip-based page traversal (breadcrumb trail)
+  const [navStack, setNavStack] = useState<string[]>([])
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
@@ -138,7 +140,7 @@ export default function NotesPage() {
       // Compute new notes outside the updater to avoid calling setActiveId during render
       const updatedNotes = notes.filter(n => n.id !== person.noteId)
       setNotes(updatedNotes)
-      if (activeId === person.noteId) setActiveId(updatedNotes[0]?.id ?? null)
+      if (activeId === person.noteId) { setActiveId(updatedNotes[0]?.id ?? null); setNavStack([]) }
     }
     setPeople(prev => prev.filter(p => p.id !== personId))
   }
@@ -158,6 +160,7 @@ export default function NotesPage() {
       setPeople(prev => prev.filter(p => !peopleToDelete.includes(p)))
       if (activeId && noteIdsToDelete.includes(activeId)) {
         setActiveId(updatedNotes[0]?.id ?? null)
+        setNavStack([])
       }
     }
 
@@ -218,8 +221,27 @@ export default function NotesPage() {
     const note = { ...mkNote('FileText'), folderId: selectedFolderId }
     setNotes(prev => [note, ...prev])
     setActiveId(note.id)
+    setNavStack([])
     setSearch('')
     setActiveTag(null)
+  }
+
+  /** Navigate to a note via a page-link chip — pushes the current page onto the breadcrumb stack. */
+  function navigateTo(targetId: string) {
+    setNavStack(prev => activeId ? [...prev, activeId] : prev)
+    setActiveId(targetId)
+  }
+
+  /** Navigate to a breadcrumb item (null = Notes root). Trims the stack to that position. */
+  function navigateToBreadcrumb(targetId: string | null) {
+    if (targetId === null) {
+      setNavStack([])
+      setActiveId(null)
+    } else {
+      const idx = navStack.indexOf(targetId)
+      setNavStack(idx >= 0 ? navStack.slice(0, idx) : [])
+      setActiveId(targetId)
+    }
   }
 
   /** Update the display text inside all data-note-mention spans that point to `noteId`. */
@@ -303,7 +325,7 @@ export default function NotesPage() {
     // "setState during render" error in React 18 concurrent mode
     const updatedNotes = notes.filter(n => n.id !== id)
     setNotes(updatedNotes)
-    if (activeId === id) setActiveId(updatedNotes[0]?.id ?? null)
+    if (activeId === id) { setActiveId(updatedNotes[0]?.id ?? null); setNavStack([]) }
   }
 
   // ─── Folder CRUD ────────────────────────────────────────────────────────────
@@ -372,7 +394,7 @@ export default function NotesPage() {
                 onRenameFolder={renameFolder}
                 onCreate={createNote}
                 activeId={activeId}
-                onSelect={id => setActiveId(id)}
+                onSelect={id => { setActiveId(id); setNavStack([]) }}
                 allTags={allTags}
                 activeTag={activeTag}
                 onTagFilter={setActiveTag}
@@ -391,7 +413,7 @@ export default function NotesPage() {
                 selectedFolderId={selectedFolderId}
                 activeTag={activeTag}
                 activeId={activeId}
-                onSelect={id => setActiveId(id)}
+                onSelect={id => { setActiveId(id); setNavStack([]) }}
                 onCreate={createNote}
                 search={search}
                 onSearch={setSearch}
@@ -414,7 +436,9 @@ export default function NotesPage() {
                 onDelete={deleteNote}
                 people={people}
                 onCreatePerson={createPerson}
-                onNavigateTo={id => setActiveId(id)}
+                onNavigateTo={navigateTo}
+                navStack={navStack.map(id => notes.find(n => n.id === id)).filter((n): n is Note => !!n)}
+                onBreadcrumbNav={navigateToBreadcrumb}
                 objectTypes={customObjectTypes}
                 deletedObjectTypes={deletedObjectTypes}
                 onCreateObjectType={createObjectType}
@@ -467,7 +491,7 @@ export default function NotesPage() {
                     notes={notes}
                     people={people}
                     activeNoteId={activeId}
-                    onSelectNote={id => setActiveId(id)}
+                    onSelectNote={id => { setActiveId(id); setNavStack([]) }}
                     isExpanded={graphWidth > 420}
                     onToggleExpand={() => setGraphWidth(w => w > 420 ? 320 : 580)}
                   />

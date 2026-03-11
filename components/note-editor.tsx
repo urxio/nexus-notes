@@ -22,6 +22,10 @@ interface NoteEditorProps {
     people: Person[]
     onCreatePerson: (name: string, typeId?: string) => Person
     onNavigateTo?: (noteId: string) => void
+    /** Ordered history of notes visited to reach the current one (nearest-first = index 0). */
+    navStack?: Note[]
+    /** Called when a breadcrumb ancestor is clicked. null = "Notes" root. */
+    onBreadcrumbNav?: (noteId: string | null) => void
     objectTypes: ObjectType[]
     deletedObjectTypes: string[]
     onCreateObjectType: (name: string, emoji: string) => ObjectType
@@ -30,7 +34,7 @@ interface NoteEditorProps {
     notes?: Note[]
 }
 
-export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, objectTypes, deletedObjectTypes, onCreateObjectType, sidebarOpen, onToggleSidebar, notes = [] }: NoteEditorProps) {
+export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, navStack = [], onBreadcrumbNav, objectTypes, deletedObjectTypes, onCreateObjectType, sidebarOpen, onToggleSidebar, notes = [] }: NoteEditorProps) {
     const { toast } = useToast()
 
     const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
@@ -872,9 +876,32 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
                         </button>
                     )}
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Notes</span>
-                    <ChevronRight className="w-3 h-3" />
+                    <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                    {/* "Notes" root — clickable only when there is a navigation history */}
+                    {navStack.length > 0 ? (
+                        <button
+                            onClick={() => onBreadcrumbNav?.(null)}
+                            className="hover:text-foreground transition-colors shrink-0"
+                        >
+                            Notes
+                        </button>
+                    ) : (
+                        <span className="shrink-0">Notes</span>
+                    )}
+                    {/* Ancestor pages in traversal order */}
+                    {navStack.map(ancestor => (
+                        <React.Fragment key={ancestor.id}>
+                            <ChevronRight className="w-3 h-3 shrink-0" />
+                            <button
+                                onClick={() => onBreadcrumbNav?.(ancestor.id)}
+                                className="hover:text-foreground transition-colors truncate max-w-[120px]"
+                                title={ancestor.title || 'Untitled'}
+                            >
+                                {ancestor.title || 'Untitled'}
+                            </button>
+                        </React.Fragment>
+                    ))}
+                    <ChevronRight className="w-3 h-3 shrink-0" />
                     <span className="text-foreground font-medium truncate max-w-[200px]">{note.title || 'Untitled'}</span>
                     {selectedBlockIds.size > 0 && (
                         <>
