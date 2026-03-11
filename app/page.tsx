@@ -26,7 +26,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-6 md:px-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Locus Logo" className="w-8 h-8 rounded-lg shadow-sm" />
+            <img src="/logo.svg" alt="Locus Logo" className="w-8 h-8 rounded-lg shadow-sm" />
             <span className="font-semibold text-lg tracking-tight">Locus Notes</span>
           </div>
           <Link
@@ -206,7 +206,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-6 md:px-12 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Logo" className="w-5 h-5 rounded grayscale opacity-50" />
+            <img src="/logo.svg" alt="Logo" className="w-5 h-5 rounded grayscale opacity-50" />
             <span className="text-zinc-500 text-sm">Locus Notes &copy; {new Date().getFullYear()}</span>
           </div>
           <Link href="/app" className="text-zinc-500 hover:text-indigo-400 font-medium text-sm transition-colors">

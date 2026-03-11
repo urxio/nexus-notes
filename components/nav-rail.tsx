@@ -57,7 +57,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
             <div className="px-5 pt-5 pb-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <img src="/logo.png" alt="Locus Logo" className="w-8 h-8 rounded-[10px] shadow-sm flex-shrink-0" />
+                        <img src="/logo.svg" alt="Locus Logo" className="w-8 h-8 rounded-[10px] shadow-sm flex-shrink-0" />
                         <div>
                             <p className="font-bold text-[13px] text-[#1a1a2e] dark:text-zinc-100 leading-none tracking-tight">Locus</p>
                             <p className="text-[10px] text-[#9ca3af] dark:text-zinc-500 mt-0.5">Notes</p>

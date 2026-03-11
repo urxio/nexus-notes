@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <!-- Indigo background gradient: light indigo top-left → deep indigo bottom-right -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <!-- Subtle gradient on the L mark for depth -->
+    <linearGradient id="mark" x1="0%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,255,255,1.00)"/>
+      <stop offset="100%" stop-color="rgba(224,231,255,0.90)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="100" height="100" rx="22" fill="url(#bg)"/>
+
+  <!-- Depth shadow (offset 1-2px, dark indigo at low opacity) -->
+  <polygon
+    points="16,14 45,14 45,60 67,74 86,74 86,90 16,90"
+    fill="rgba(30,27,75,0.18)"
+  />
+
+  <!-- Bold geometric L mark -->
+  <!-- Vertices (clockwise):
+       (15,12)  top-left  of vertical bar
+       (44,12)  top-right of vertical bar
+       (44,58)  start of diagonal on right side of vertical
+       (66,72)  end of diagonal / top-right of horizontal bar left
+       (85,72)  top-right of horizontal bar
+       (85,88)  bottom-right
+       (15,88)  bottom-left
+  -->
+  <polygon
+    points="15,12 44,12 44,58 66,72 85,72 85,88 15,88"
+    fill="url(#mark)"
+  />
+</svg>
