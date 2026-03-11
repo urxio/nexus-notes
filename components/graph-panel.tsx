@@ -59,8 +59,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     const [pan, setPan] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(1)
     const [hovered, setHovered] = useState<string | null>(null)
-    const panRef = useRef({ active: false, sx: 0, sy: 0, spx: 0, spy: 0 })
-    const dragRef = useRef<{ id: string; ox: number; oy: number } | null>(null)
+    const panRef = useRef({ active: false, sx: 0, sy: 0, spx: 0, spy: 0, lpx: 0, lpy: 0 })
+    const dragRef = useRef<{ id: string; ox: number; oy: number; lpx: number; lpy: number; lvx: number; lvy: number } | null>(null)
+    const panVRef = useRef({ vx: 0, vy: 0 })    // pan inertia velocity (screen px/frame)
+    const afterThrowRef = useRef(0)              // ticks remaining for post-drag sim
 
     // Keep a ref so the graphKey effect can read the current active note
     // without becoming a dependency (which would rebuild the graph on every
@@ -132,11 +134,26 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     useEffect(() => {
         function animate() {
             const tc = tickCountRef.current
-            const alpha = tc < 280 ? Math.max(0.05, 1 - tc / 280) : (dragRef.current ? 0.05 : 0)
+            // Decrement afterThrow counter (post-release sim window)
+            if (afterThrowRef.current > 0) afterThrowRef.current--
+            const alpha = tc < 280
+                ? Math.max(0.05, 1 - tc / 280)
+                : dragRef.current ? 0.18          // higher alpha so neighbours react during drag
+                : afterThrowRef.current > 0 ? 0.12 // post-release throw sim
+                : 0
             if (alpha > 0) {
                 tickSim(nodesRef.current, edgesRef.current, size.w, size.h, alpha)
                 tickCountRef.current++
                 forceRender(k => k + 1)
+            }
+            // Pan inertia — coast to a stop after pointer release
+            const pv = panVRef.current
+            if (!panRef.current.active && (Math.abs(pv.vx) > 0.25 || Math.abs(pv.vy) > 0.25)) {
+                pv.vx *= 0.85
+                pv.vy *= 0.85
+                setPan(p => ({ x: p.x + pv.vx, y: p.y + pv.vy }))
+            } else if (!panRef.current.active) {
+                pv.vx = 0; pv.vy = 0
             }
             rafRef.current = requestAnimationFrame(animate)
         }
@@ -178,9 +195,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         e.currentTarget.setPointerCapture(e.pointerId)
         if (node) {
             const { x, y } = toGraph(e.clientX, e.clientY)
-            dragRef.current = { id: node.id, ox: x - node.x, oy: y - node.y }
+            dragRef.current = { id: node.id, ox: x - node.x, oy: y - node.y, lpx: x, lpy: y, lvx: 0, lvy: 0 }
         } else {
-            panRef.current = { active: true, sx: e.clientX, sy: e.clientY, spx: pan.x, spy: pan.y }
+            panVRef.current = { vx: 0, vy: 0 }  // cancel any ongoing inertia
+            panRef.current = { active: true, sx: e.clientX, sy: e.clientY, spx: pan.x, spy: pan.y, lpx: e.clientX, lpy: e.clientY }
         }
     }
 
@@ -189,8 +207,23 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         if (drag) {
             const { x, y } = toGraph(e.clientX, e.clientY)
             const node = nodesRef.current.find(n => n.id === drag.id)
-            if (node) { node.x = x - drag.ox; node.y = y - drag.oy; node.vx = 0; node.vy = 0 }
+            if (node) {
+                node.x = x - drag.ox
+                node.y = y - drag.oy
+                // Track smoothed velocity so we can throw on release
+                drag.lvx = drag.lvx * 0.6 + (x - drag.lpx) * 0.4
+                drag.lvy = drag.lvy * 0.6 + (y - drag.lpy) * 0.4
+                drag.lpx = x; drag.lpy = y
+                node.vx = 0; node.vy = 0  // prevent sim drift while dragging
+            }
         } else if (panRef.current.active) {
+            // Track pan velocity for inertia
+            const dx = e.clientX - panRef.current.lpx
+            const dy = e.clientY - panRef.current.lpy
+            panVRef.current.vx = panVRef.current.vx * 0.3 + dx * 0.7
+            panVRef.current.vy = panVRef.current.vy * 0.3 + dy * 0.7
+            panRef.current.lpx = e.clientX
+            panRef.current.lpy = e.clientY
             setPan({ x: panRef.current.spx + e.clientX - panRef.current.sx, y: panRef.current.spy + e.clientY - panRef.current.sy })
         } else {
             setHovered(nodeAt(e.clientX, e.clientY)?.id || null)
@@ -204,9 +237,16 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             const { x, y } = toGraph(e.clientX, e.clientY)
             const moved = node ? Math.abs((x - drag.ox) - node.x) + Math.abs((y - drag.oy) - node.y) : 999
             if (moved < 8 && node?.type === 'note' && node.noteId) onSelectNote(node.noteId)
+            if (node) {
+                // Throw! Apply the smoothed drag velocity so the node coasts on release
+                node.vx = drag.lvx * 4
+                node.vy = drag.lvy * 4
+                afterThrowRef.current = 60  // keep sim alive for ~1 s to let it play out
+            }
             dragRef.current = null
         }
         panRef.current.active = false
+        // panVRef retains its velocity — the RAF loop handles inertia decay
     }
 
     function handleWheel(e: React.WheelEvent) {

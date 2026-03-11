@@ -117,7 +117,7 @@ export function tickSim(nodes: GNode[], edges: GEdge[], w: number, h: number, al
     for (const n of nodes) {
         n.vx += (w / 2 - n.x) * 0.004 * alpha
         n.vy += (h / 2 - n.y) * 0.004 * alpha
-        n.vx *= 0.82; n.vy *= 0.82
+        n.vx *= 0.88; n.vy *= 0.88
         n.x = Math.max(n.r + 10, Math.min(w - n.r - 10, n.x + n.vx))
         n.y = Math.max(n.r + 10, Math.min(h - n.r - 10, n.y + n.vy))
     }
