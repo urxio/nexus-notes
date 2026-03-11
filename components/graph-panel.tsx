@@ -15,7 +15,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
 
     // Theme-aware color tokens
     const T = dark ? {
-        bg: '#0d1117', dot: '#161e2e',
+        bg: '#070709', dot: '#111118',
         cardFill: '#131929', cardActiveFill: '#0d1f38',
         cardBorder: '#1e2d45', cardActiveBorder: '#3b82f6',
         cardShadow: '#060c18', cardActiveShadow: '#1d3a6e',

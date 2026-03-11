@@ -44,7 +44,7 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
     }
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-zinc-900">
+        <div className="flex flex-col h-full bg-white dark:bg-zinc-950">
             {/* Header */}
             <div className="px-4 pt-5 pb-3 border-b border-[#f3f4f6] dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-3">

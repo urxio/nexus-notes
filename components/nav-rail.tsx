@@ -43,7 +43,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
 
     return (
-        <div className="flex flex-col h-full bg-white/80 backdrop-blur-xl dark:bg-zinc-900">
+        <div className="flex flex-col h-full bg-white/55 backdrop-blur-2xl dark:bg-zinc-950/75 dark:backdrop-blur-2xl">
             {/* Identity header */}
             <div className="px-5 pt-5 pb-4">
                 <div className="flex items-center justify-between">
@@ -303,7 +303,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
             )}
 
             {/* Footer */}
-            <div className="px-4 py-3 flex items-center justify-between border-t border-slate-100/80 dark:border-zinc-800">
+            <div className="px-4 py-3 flex items-center justify-between border-t border-white/50 dark:border-white/[0.07]">
                 <ThemeSwitcher />
                 <button onClick={onToggleGraph}
                     className={cn(

@@ -47,7 +47,7 @@
     --sidebar-ring: 239 84% 67%;
   }
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 0 0% 0%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -89,6 +89,20 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── App shell gradient (light) + pure black (dark) ────────────────────────── */
+.app-shell {
+  background:
+    radial-gradient(ellipse 75% 65% at 12% 14%, rgba(165, 180, 252, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 65% at 88% 88%, rgba(196, 181, 253, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 78% 12%, rgba(147, 197, 253, 0.40) 0%, transparent 50%),
+    radial-gradient(ellipse 48% 45% at 22% 82%, rgba(167, 243, 208, 0.18) 0%, transparent 50%),
+    linear-gradient(145deg, #eef2ff 0%, #f5f3ff 50%, #eff6ff 100%);
+}
+
+.dark .app-shell {
+  background: #000000;
 }
 
 /* ── Note-mention chip (page links via @[[PageTitle]]) ─────────────────────── */

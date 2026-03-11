@@ -373,12 +373,12 @@ export default function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-screen overflow-hidden bg-gradient-to-b from-[#f8fafc] to-[#edf2f7] dark:bg-zinc-950 p-3 gap-3">
+      <div className="app-shell flex h-screen overflow-hidden p-3 gap-3">
 
         {sidebarOpen && (
           <>
-            {/* Col 1: Nav Rail card */}
-            <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05]">
+            {/* Col 1: Nav Rail card — glass column, must NOT clip backdrop-blur */}
+            <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(99,102,241,0.14)] ring-1 ring-white/70 dark:ring-white/[0.06]">
               <NavRail
                 folders={folders}
                 selectedFolderId={selectedFolderId}
@@ -406,7 +406,7 @@ export default function NotesPage() {
             </div>
 
             {/* Col 2: Note List card */}
-            <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]">
+            <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06]">
               <NoteListPanel
                 notes={panelNotes}
                 folders={folders}
@@ -426,7 +426,7 @@ export default function NotesPage() {
 
         {/* Col 3: Editor card + optional Graph card */}
         <div className="flex-1 min-w-0 flex gap-1 overflow-hidden relative">
-          <div className="flex-1 overflow-hidden rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] bg-white dark:bg-zinc-900">
+          <div className="flex-1 overflow-hidden rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06] bg-white dark:bg-zinc-950">
             {activeNote ? (
               <NoteEditor
                 key={activeNote.id}
@@ -484,7 +484,7 @@ export default function NotesPage() {
               >
                 <GripVertical className="w-3 h-3 text-stone-300 dark:text-zinc-700 group-hover:text-orange-500 transition-colors" />
               </div>
-              <div className="relative flex-shrink-0 h-full overflow-hidden rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05]"
+              <div className="relative flex-shrink-0 h-full overflow-hidden rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06]"
                 style={{ width: graphWidth, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}>
                 <div className="w-full h-full">
                   <GraphPanel
