@@ -373,12 +373,12 @@ export default function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-screen overflow-hidden bg-[#EEEDEA] dark:bg-zinc-950 p-3 gap-3">
+      <div className="flex h-screen overflow-hidden bg-gradient-to-b from-[#f8fafc] to-[#edf2f7] dark:bg-zinc-950 p-3 gap-3">
 
         {sidebarOpen && (
           <>
             {/* Col 1: Nav Rail card */}
-            <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+            <div className="w-[220px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05]">
               <NavRail
                 folders={folders}
                 selectedFolderId={selectedFolderId}
@@ -406,7 +406,7 @@ export default function NotesPage() {
             </div>
 
             {/* Col 2: Note List card */}
-            <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+            <div className="w-[280px] flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05]">
               <NoteListPanel
                 notes={panelNotes}
                 folders={folders}
@@ -426,7 +426,7 @@ export default function NotesPage() {
 
         {/* Col 3: Editor card + optional Graph card */}
         <div className="flex-1 min-w-0 flex gap-1 overflow-hidden relative">
-          <div className="flex-1 overflow-hidden rounded-2xl shadow-sm bg-white dark:bg-zinc-900">
+          <div className="flex-1 overflow-hidden rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] bg-white dark:bg-zinc-900">
             {activeNote ? (
               <NoteEditor
                 key={activeNote.id}
@@ -450,19 +450,19 @@ export default function NotesPage() {
               <div className="flex flex-col items-center justify-center h-full gap-4">
                 {!sidebarOpen && (
                   <button onClick={() => setSidebarOpen(true)} title="Open sidebar"
-                    className="absolute top-5 left-5 z-20 w-8 h-8 rounded-xl bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
-                    <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
+                    className="absolute top-5 left-5 z-20 w-8 h-8 rounded-xl bg-[#f9fafb] dark:bg-zinc-800 hover:bg-[#f3f4f6] dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-[#e5e7eb] dark:border-zinc-700">
+                    <PanelLeftOpen className="w-4 h-4 text-[#9ca3af] dark:text-zinc-400" />
                   </button>
                 )}
-                <div className="w-14 h-14 rounded-2xl bg-stone-50 dark:bg-zinc-800 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-stone-200 dark:text-zinc-700" />
+                <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] dark:bg-zinc-800 flex items-center justify-center border border-[#e5e7eb] dark:border-zinc-700">
+                  <BookOpen className="w-6 h-6 text-[#d1d5db] dark:text-zinc-700" />
                 </div>
                 <div className="text-center">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-stone-300 dark:text-zinc-700">No page selected</p>
-                  <p className="text-[13px] mt-1 text-stone-300 dark:text-zinc-700">Select a note or create a new one</p>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">No page selected</p>
+                  <p className="text-[13px] mt-1 text-[#9ca3af] dark:text-zinc-600">Select a note or create a new one</p>
                 </div>
                 <button onClick={createNote}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-[13px] transition-colors shadow-sm">
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] transition-colors shadow-sm">
                   <Plus className="w-4 h-4" /> New note
                 </button>
               </div>
@@ -473,7 +473,7 @@ export default function NotesPage() {
           {graphOpen && (
             <>
               <div
-                className="flex-shrink-0 w-3 flex items-center justify-center cursor-col-resize group z-10 rounded-xl hover:bg-stone-200/40 dark:hover:bg-zinc-700/30 transition-colors"
+                className="flex-shrink-0 w-3 flex items-center justify-center cursor-col-resize group z-10 rounded-xl hover:bg-indigo-100/40 dark:hover:bg-zinc-700/30 transition-colors"
                 onMouseDown={e => {
                   e.preventDefault()
                   graphResizingRef.current = true
@@ -484,7 +484,7 @@ export default function NotesPage() {
               >
                 <GripVertical className="w-3 h-3 text-stone-300 dark:text-zinc-700 group-hover:text-orange-500 transition-colors" />
               </div>
-              <div className="relative flex-shrink-0 h-full overflow-hidden rounded-2xl shadow-sm"
+              <div className="relative flex-shrink-0 h-full overflow-hidden rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05]"
                 style={{ width: graphWidth, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}>
                 <div className="w-full h-full">
                   <GraphPanel

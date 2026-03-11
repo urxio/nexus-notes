@@ -868,12 +868,12 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header bar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b bg-background/95 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center justify-between px-6 py-3 border-b border-[#f1f5f9] dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-sm text-[#9ca3af] dark:text-zinc-500">
                     {!sidebarOpen && onToggleSidebar && (
                         <button onClick={onToggleSidebar} title="Open sidebar"
-                            className="mr-2 w-7 h-7 rounded-lg bg-stone-100 dark:bg-zinc-800 hover:bg-stone-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-stone-200/50 dark:border-zinc-700/50">
-                            <PanelLeftOpen className="w-4 h-4 text-stone-500 dark:text-zinc-400" />
+                            className="mr-2 w-7 h-7 rounded-lg bg-[#f9fafb] dark:bg-zinc-800 hover:bg-[#f3f4f6] dark:hover:bg-zinc-700 flex items-center justify-center transition-all border border-[#e5e7eb] dark:border-zinc-700">
+                            <PanelLeftOpen className="w-4 h-4 text-[#9ca3af] dark:text-zinc-400" />
                         </button>
                     )}
                     <BookOpen className="w-3.5 h-3.5 shrink-0" />
@@ -881,7 +881,7 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                     {navStack.length > 0 ? (
                         <button
                             onClick={() => onBreadcrumbNav?.(null)}
-                            className="hover:text-foreground transition-colors shrink-0"
+                            className="hover:text-[#374151] dark:hover:text-zinc-300 transition-colors shrink-0"
                         >
                             Notes
                         </button>
@@ -894,7 +894,7 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             <ChevronRight className="w-3 h-3 shrink-0" />
                             <button
                                 onClick={() => onBreadcrumbNav?.(ancestor.id)}
-                                className="hover:text-foreground transition-colors truncate max-w-[120px]"
+                                className="hover:text-[#374151] dark:hover:text-zinc-300 transition-colors truncate max-w-[120px]"
                                 title={ancestor.title || 'Untitled'}
                             >
                                 {ancestor.title || 'Untitled'}
@@ -902,7 +902,7 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                         </React.Fragment>
                     ))}
                     <ChevronRight className="w-3 h-3 shrink-0" />
-                    <span className="text-foreground font-medium truncate max-w-[200px]">{note.title || 'Untitled'}</span>
+                    <span className="text-[#374151] dark:text-zinc-300 font-semibold truncate max-w-[200px]">{note.title || 'Untitled'}</span>
                     {selectedBlockIds.size > 0 && (
                         <>
                             <ChevronRight className="w-3 h-3 text-muted-foreground/40" />
@@ -962,7 +962,7 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
             </div>
 
             <ScrollArea className="flex-1">
-                <div className="max-w-2xl mx-auto px-8 py-10 pb-24">
+                <div className="max-w-2xl mx-auto px-14 py-12 pb-28">
                     {/* Emoji + Title */}
                     <div className="mb-8 space-y-3">
                         <div className="relative inline-block">
@@ -991,10 +991,10 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             value={note.title}
                             onChange={e => onChange(note.id, { title: e.target.value })}
                             placeholder="Untitled"
-                            className="w-full text-4xl font-bold tracking-tight bg-transparent outline-none placeholder:text-muted-foreground/40 border-none"
+                            className="w-full text-4xl font-bold tracking-tight bg-transparent outline-none placeholder:text-[#d1d5db] dark:placeholder:text-zinc-600 border-none text-[#111827] dark:text-zinc-100"
                         />
                         {/* Created / edited dates */}
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground/55 select-none -mt-1">
+                        <div className="flex items-center gap-3 text-xs text-[#d1d5db] dark:text-zinc-600 select-none -mt-1">
                             <span>Created {formatDate(note.createdAt)}</span>
                             <span>·</span>
                             <span>Edited {formatDate(note.updatedAt)}</span>
