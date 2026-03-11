@@ -509,7 +509,7 @@ export default function NotesPage() {
 
             {/* Col 2→3 resize handle */}
             <div
-              className="flex-shrink-0 w-1 flex items-center justify-center cursor-col-resize group z-10 rounded-xl hover:bg-indigo-100/40 dark:hover:bg-zinc-700/30 transition-colors"
+              className="flex-shrink-0 w-1 -mx-2 flex items-center justify-center cursor-col-resize group z-10 rounded-xl hover:bg-indigo-100/40 dark:hover:bg-zinc-700/30 transition-colors"
               onMouseDown={e => {
                 e.preventDefault()
                 col2ResizingRef.current = true
