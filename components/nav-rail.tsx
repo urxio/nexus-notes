@@ -215,8 +215,8 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                 className={cn(
                                                     "w-full flex items-center gap-1.5 px-1.5 py-1 mb-1 rounded-md border transition-colors",
                                                     selectedObjectTypeId === objType.id
-                                                        ? "bg-indigo-600 dark:bg-indigo-600 border-indigo-600 dark:border-indigo-600"
-                                                        : "bg-slate-50 dark:bg-zinc-800/50 border-slate-100 dark:border-zinc-700/50"
+                                                        ? "bg-indigo-600 dark:bg-indigo-600 border-indigo-500 dark:border-indigo-500 shadow-sm"
+                                                        : "bg-slate-50 dark:bg-zinc-800/60 border-slate-300 dark:border-zinc-600"
                                                 )}
                                                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'objectType', id: objType.id }) }}
                                             >
@@ -262,10 +262,10 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                             }}
                                                             onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'person', id: person.id }) }}
                                                             className={cn(
-                                                                "flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1 rounded-lg text-[12px] transition-all text-left",
+                                                                "flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1 rounded-lg text-[12px] transition-all text-left border",
                                                                 person.noteId && activeId === person.noteId
-                                                                    ? "bg-indigo-50 dark:bg-zinc-800 text-indigo-700 dark:text-zinc-100 font-semibold"
-                                                                    : "text-[#374151] dark:text-zinc-400 font-medium hover:bg-slate-50 dark:hover:bg-zinc-800/50 hover:text-[#1a1a2e]"
+                                                                    ? "bg-indigo-50 dark:bg-zinc-800 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-zinc-100 font-semibold"
+                                                                    : "bg-white/70 dark:bg-zinc-800/40 border-slate-200 dark:border-zinc-700 text-[#374151] dark:text-zinc-400 font-medium hover:bg-slate-50 dark:hover:bg-zinc-800/70 hover:border-slate-300 dark:hover:border-zinc-600 hover:text-[#1a1a2e]"
                                                             )}
                                                         >
                                                             <NoteIcon iconName={person.emoji} className="w-2.5 h-2.5 flex-shrink-0 opacity-70" />
