@@ -137,24 +137,23 @@ export function ObjectBoardPanel({
         return canonical
     })
 
+    // On mount: sanitize in-memory state against canonical, then persist.
+    // Runs atomically (single setVisiblePropNames) so the persist effect below
+    // always sees the corrected value — no race with stale data.
+    useEffect(() => {
+        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
+        setVisiblePropNames(prev => {
+            const filtered = prev.filter(n => canonical.includes(n))
+            const correct = filtered.length > 0 ? filtered : canonical
+            try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(correct)) } catch {}
+            return correct
+        })
+    }, [objectType.id])
+
+    // Persist whenever the user toggles a prop (after state is already canonical-clean)
     useEffect(() => {
         try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(visiblePropNames)) } catch {}
     }, [visiblePropNames, objectType.id])
-
-    // Re-sync when objectType changes (switching types) — always filter to canonical names
-    useEffect(() => {
-        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
-        try {
-            const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            if (raw) {
-                const saved = JSON.parse(raw) as string[]
-                const filtered = saved.filter(n => canonical.includes(n))
-                setVisiblePropNames(filtered.length > 0 ? filtered : canonical)
-            } else {
-                setVisiblePropNames(canonical)
-            }
-        } catch { setVisiblePropNames(canonical) }
-    }, [objectType.id])
 
     // Close settings on outside click
     useEffect(() => {
@@ -211,9 +210,13 @@ export function ObjectBoardPanel({
                                         return (
                                             <button key={name}
                                                 className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-[#f9fafb] dark:hover:bg-zinc-800 transition-colors text-left"
-                                                onClick={() => setVisiblePropNames(prev =>
-                                                    prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-                                                )}>
+                                                onClick={() => setVisiblePropNames(prev => {
+                                                    // Always sanitize against canonical before toggling
+                                                    const clean = prev.filter(n => allPropNames.includes(n))
+                                                    return clean.includes(name)
+                                                        ? clean.filter(n => n !== name)
+                                                        : [...clean, name]
+                                                })}>
                                                 <div className={cn(
                                                     "w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
                                                     visible ? "bg-indigo-500/20 border-indigo-400" : "border-[#d1d5db] dark:border-zinc-600"
