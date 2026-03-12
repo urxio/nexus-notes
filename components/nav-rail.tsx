@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw, Mail } from "lucide-react"
+import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw, Mail, LogOut } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -40,9 +40,11 @@ interface NavRailProps {
     inboxView?: boolean
     inboxUnread?: number
     onSelectInbox?: () => void
+    /** Called when user clicks Sign Out; omit to hide the button (e.g. offline mode) */
+    onSignOut?: () => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme === 'dark'
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -426,7 +428,18 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
 
             {/* Footer */}
             <div className="px-4 py-3 flex items-center justify-between border-t border-white/50 dark:border-white/[0.07]">
-                <ThemeSwitcher />
+                <div className="flex items-center gap-1">
+                    <ThemeSwitcher />
+                    {onSignOut && (
+                        <button
+                            onClick={onSignOut}
+                            title="Sign out"
+                            className="w-7 h-7 rounded-xl flex items-center justify-center transition-all text-[#9ca3af] dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        >
+                            <LogOut className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
                 <button onClick={onToggleGraph}
                     className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono uppercase tracking-wider transition-all",

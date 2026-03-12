@@ -1,4 +1,5 @@
 import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem, NoteProperty, PropertyType, InboxItem } from './types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { SEED_NOTES, PERSON_EMOJIS, NOTE_ICON_KEYS, NOTE_COLORS } from './constants'
 
 export const STORAGE_KEY = 'locus-notes-v1'
@@ -235,4 +236,354 @@ export function normalizeBlocks(blocks: Block[]): Block[] {
         }
     }
     return result.length > 0 ? result : [mkBlock('p')]
+}
+
+// ─── Supabase type mappers ─────────────────────────────────────────────────────
+// These convert between our camelCase TypeScript types and Supabase's snake_case columns.
+
+export function noteToDb(n: Note, userId: string) {
+    return {
+        id:          n.id,
+        user_id:     userId,
+        title:       n.title,
+        emoji:       n.emoji,
+        color:       n.color,
+        blocks:      n.blocks      as any,
+        tags:        n.tags,
+        properties:  (n.properties ?? []) as any,
+        created_at:  n.createdAt,
+        updated_at:  n.updatedAt,
+        person_id:   n.personId   ?? null,
+        folder_id:   n.folderId   ?? null,
+        trashed_at:  n.trashedAt  ?? null,
+        note_type:   n.noteType   ?? null,
+        due_date:    n.dueDate    ?? null,
+        last_viewed: n.lastViewed ?? null,
+    }
+}
+
+export function noteFromDb(row: any): Note {
+    return {
+        id:         row.id,
+        title:      row.title,
+        emoji:      row.emoji,
+        color:      row.color,
+        blocks:     row.blocks      ?? [],
+        tags:       row.tags        ?? [],
+        properties: row.properties  ?? [],
+        createdAt:  row.created_at,
+        updatedAt:  row.updated_at,
+        personId:   row.person_id   ?? undefined,
+        folderId:   row.folder_id   ?? undefined,
+        trashedAt:  row.trashed_at  ?? undefined,
+        noteType:   row.note_type   ?? undefined,
+        dueDate:    row.due_date    ?? undefined,
+        lastViewed: row.last_viewed ?? undefined,
+    }
+}
+
+export function personToDb(p: Person, userId: string) {
+    return {
+        id:      p.id,
+        user_id: userId,
+        name:    p.name,
+        emoji:   p.emoji,
+        note_id: p.noteId  ?? null,
+        type_id: p.typeId  ?? null,
+    }
+}
+
+export function personFromDb(row: any): Person {
+    return {
+        id:     row.id,
+        name:   row.name,
+        emoji:  row.emoji,
+        noteId: row.note_id ?? undefined,
+        typeId: row.type_id ?? undefined,
+    }
+}
+
+export function folderToDb(f: Folder, userId: string) {
+    return {
+        id:         f.id,
+        user_id:    userId,
+        name:       f.name,
+        emoji:      f.emoji,
+        parent_id:  f.parentId  ?? null,
+        created_at: f.createdAt,
+    }
+}
+
+export function folderFromDb(row: any): Folder {
+    return {
+        id:        row.id,
+        name:      row.name,
+        emoji:     row.emoji,
+        parentId:  row.parent_id ?? null,
+        createdAt: row.created_at,
+    }
+}
+
+export function objectTypeToDb(t: ObjectType, userId: string) {
+    return {
+        id:         t.id,
+        user_id:    userId,
+        name:       t.name,
+        emoji:      t.emoji,
+        is_builtin: t.isBuiltin ?? false,
+    }
+}
+
+export function objectTypeFromDb(row: any): ObjectType {
+    return {
+        id:        row.id,
+        name:      row.name,
+        emoji:     row.emoji,
+        isBuiltin: row.is_builtin ?? false,
+    }
+}
+
+export function inboxItemToDb(i: InboxItem, userId: string) {
+    return {
+        id:        i.id,
+        user_id:   userId,
+        note_id:   i.noteId,
+        type:      i.type,
+        subject:   i.subject,
+        sender:    i.sender,
+        preview:   i.preview,
+        timestamp: i.timestamp,
+        read:      i.read,
+    }
+}
+
+export function inboxItemFromDb(row: any): InboxItem {
+    return {
+        id:        row.id,
+        noteId:    row.note_id,
+        type:      row.type,
+        subject:   row.subject,
+        sender:    row.sender,
+        preview:   row.preview,
+        timestamp: row.timestamp,
+        read:      row.read,
+    }
+}
+
+// ─── Supabase async CRUD ───────────────────────────────────────────────────────
+
+// ── Notes ──────────────────────────────────────────────────────────────────────
+
+export async function dbLoadNotes(supabase: SupabaseClient, userId: string): Promise<Note[]> {
+    const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(noteFromDb)
+}
+
+export async function dbUpsertNote(supabase: SupabaseClient, note: Note, userId: string): Promise<void> {
+    const { error } = await supabase
+        .from('notes')
+        .upsert(noteToDb(note, userId), { onConflict: 'id' })
+    if (error) console.warn('[db] upsertNote error:', error.message)
+}
+
+export async function dbUpsertNotes(supabase: SupabaseClient, notes: Note[], userId: string): Promise<void> {
+    if (notes.length === 0) return
+    const { error } = await supabase
+        .from('notes')
+        .upsert(notes.map(n => noteToDb(n, userId)), { onConflict: 'id' })
+    if (error) console.warn('[db] upsertNotes error:', error.message)
+}
+
+export async function dbDeleteNote(supabase: SupabaseClient, noteId: string, userId: string): Promise<void> {
+    const { error } = await supabase.from('notes').delete().eq('id', noteId).eq('user_id', userId)
+    if (error) console.warn('[db] deleteNote error:', error.message)
+}
+
+// ── People ─────────────────────────────────────────────────────────────────────
+
+export async function dbLoadPeople(supabase: SupabaseClient, userId: string): Promise<Person[]> {
+    const { data, error } = await supabase
+        .from('people')
+        .select('*')
+        .eq('user_id', userId)
+    if (error) throw error
+    return (data ?? []).map(personFromDb)
+}
+
+export async function dbSyncPeople(
+    supabase: SupabaseClient,
+    people: Person[],
+    prevPeople: Person[],
+    userId: string
+): Promise<void> {
+    const changed = people.filter(p => {
+        const prev = prevPeople.find(pp => pp.id === p.id)
+        return !prev || JSON.stringify(prev) !== JSON.stringify(p)
+    })
+    const removed = prevPeople.filter(pp => !people.some(p => p.id === pp.id))
+    if (changed.length > 0) {
+        const { error } = await supabase
+            .from('people')
+            .upsert(changed.map(p => personToDb(p, userId)), { onConflict: 'id' })
+        if (error) console.warn('[db] syncPeople upsert error:', error.message)
+    }
+    if (removed.length > 0) {
+        const { error } = await supabase
+            .from('people')
+            .delete()
+            .in('id', removed.map(p => p.id))
+        if (error) console.warn('[db] syncPeople delete error:', error.message)
+    }
+}
+
+// ── Folders ────────────────────────────────────────────────────────────────────
+
+export async function dbLoadFolders(supabase: SupabaseClient, userId: string): Promise<Folder[]> {
+    const { data, error } = await supabase
+        .from('folders')
+        .select('*')
+        .eq('user_id', userId)
+    if (error) throw error
+    return (data ?? []).map(folderFromDb)
+}
+
+export async function dbSyncFolders(
+    supabase: SupabaseClient,
+    folders: Folder[],
+    prevFolders: Folder[],
+    userId: string
+): Promise<void> {
+    const changed = folders.filter(f => {
+        const prev = prevFolders.find(pf => pf.id === f.id)
+        return !prev || JSON.stringify(prev) !== JSON.stringify(f)
+    })
+    const removed = prevFolders.filter(pf => !folders.some(f => f.id === pf.id))
+    if (changed.length > 0) {
+        const { error } = await supabase
+            .from('folders')
+            .upsert(changed.map(f => folderToDb(f, userId)), { onConflict: 'id' })
+        if (error) console.warn('[db] syncFolders upsert error:', error.message)
+    }
+    if (removed.length > 0) {
+        const { error } = await supabase
+            .from('folders')
+            .delete()
+            .in('id', removed.map(f => f.id))
+        if (error) console.warn('[db] syncFolders delete error:', error.message)
+    }
+}
+
+// ── Object Types ───────────────────────────────────────────────────────────────
+
+export async function dbLoadObjectTypes(supabase: SupabaseClient, userId: string): Promise<ObjectType[]> {
+    const { data, error } = await supabase
+        .from('object_types')
+        .select('*')
+        .eq('user_id', userId)
+    if (error) throw error
+    return (data ?? []).map(objectTypeFromDb)
+}
+
+export async function dbSyncObjectTypes(
+    supabase: SupabaseClient,
+    types: ObjectType[],
+    prevTypes: ObjectType[],
+    userId: string
+): Promise<void> {
+    const changed = types.filter(t => {
+        const prev = prevTypes.find(pt => pt.id === t.id)
+        return !prev || JSON.stringify(prev) !== JSON.stringify(t)
+    })
+    const removed = prevTypes.filter(pt => !types.some(t => t.id === pt.id))
+    if (changed.length > 0) {
+        const { error } = await supabase
+            .from('object_types')
+            .upsert(changed.map(t => objectTypeToDb(t, userId)), { onConflict: 'id' })
+        if (error) console.warn('[db] syncObjectTypes upsert error:', error.message)
+    }
+    if (removed.length > 0) {
+        const { error } = await supabase
+            .from('object_types')
+            .delete()
+            .in('id', removed.map(t => t.id))
+        if (error) console.warn('[db] syncObjectTypes delete error:', error.message)
+    }
+}
+
+// ── Deleted Object Types ───────────────────────────────────────────────────────
+
+export async function dbLoadDeletedObjectTypes(supabase: SupabaseClient, userId: string): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('deleted_object_types')
+        .select('type_id')
+        .eq('user_id', userId)
+    if (error) throw error
+    return (data ?? []).map((row: any) => row.type_id)
+}
+
+export async function dbSyncDeletedObjectTypes(
+    supabase: SupabaseClient,
+    typeIds: string[],
+    prevTypeIds: string[],
+    userId: string
+): Promise<void> {
+    const added   = typeIds.filter(id => !prevTypeIds.includes(id))
+    const removed = prevTypeIds.filter(id => !typeIds.includes(id))
+    if (added.length > 0) {
+        const { error } = await supabase
+            .from('deleted_object_types')
+            .upsert(added.map(type_id => ({ user_id: userId, type_id })))
+        if (error) console.warn('[db] syncDeletedObjectTypes upsert error:', error.message)
+    }
+    if (removed.length > 0) {
+        const { error } = await supabase
+            .from('deleted_object_types')
+            .delete()
+            .eq('user_id', userId)
+            .in('type_id', removed)
+        if (error) console.warn('[db] syncDeletedObjectTypes delete error:', error.message)
+    }
+}
+
+// ── Inbox ──────────────────────────────────────────────────────────────────────
+
+export async function dbLoadInbox(supabase: SupabaseClient, userId: string): Promise<InboxItem[]> {
+    const { data, error } = await supabase
+        .from('inbox')
+        .select('*')
+        .eq('user_id', userId)
+        .order('timestamp', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(inboxItemFromDb)
+}
+
+export async function dbSyncInbox(
+    supabase: SupabaseClient,
+    items: InboxItem[],
+    prevItems: InboxItem[],
+    userId: string
+): Promise<void> {
+    const changed = items.filter(i => {
+        const prev = prevItems.find(pi => pi.id === i.id)
+        return !prev || JSON.stringify(prev) !== JSON.stringify(i)
+    })
+    const removed = prevItems.filter(pi => !items.some(i => i.id === pi.id))
+    if (changed.length > 0) {
+        const { error } = await supabase
+            .from('inbox')
+            .upsert(changed.map(i => inboxItemToDb(i, userId)), { onConflict: 'id' })
+        if (error) console.warn('[db] syncInbox upsert error:', error.message)
+    }
+    if (removed.length > 0) {
+        const { error } = await supabase
+            .from('inbox')
+            .delete()
+            .in('id', removed.map(i => i.id))
+        if (error) console.warn('[db] syncInbox delete error:', error.message)
+    }
 }

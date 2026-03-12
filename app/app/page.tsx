@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +27,20 @@ import {
 
 import { BlockType, Block, Note, Folder, TreeItem, Person, ObjectType, GNode, GEdge, InboxItem } from "@/lib/types"
 import { NOTE_COLORS, NOTE_ICON_KEYS, BLOCK_PLACEHOLDERS, SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, PERSON_EMOJIS } from "@/lib/constants"
-import { loadFolders, saveFolders, loadObjectTypes, saveObjectTypes, loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople, mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock, normalizeBlocks, buildTree, defaultPropertiesForType, loadInbox, saveInbox } from "@/lib/storage"
+import {
+  loadFolders, saveFolders, loadObjectTypes, saveObjectTypes,
+  loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople,
+  mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock,
+  normalizeBlocks, buildTree, defaultPropertiesForType, loadInbox, saveInbox,
+  dbLoadNotes, dbUpsertNote, dbDeleteNote,
+  dbLoadPeople, dbSyncPeople,
+  dbLoadFolders, dbSyncFolders,
+  dbLoadObjectTypes, dbSyncObjectTypes,
+  dbLoadDeletedObjectTypes, dbSyncDeletedObjectTypes,
+  dbLoadInbox, dbSyncInbox,
+} from "@/lib/storage"
+import { getSupabaseClient } from "@/lib/supabase"
+import { migrateIfNeeded } from "@/lib/migrate"
 import { buildGraph, tickSim } from "@/lib/graph"
 import { NoteIcon } from "@/components/note-icon"
 import { BLOCK_ICONS } from "@/components/block-icons"
@@ -74,6 +88,18 @@ const DARK_BG =
 
 export default function NotesPage() {
   const { resolvedTheme } = useTheme()
+  const router = useRouter()
+
+  // ─── Auth / Supabase ────────────────────────────────────────────────────────
+  // Stable ref to the Supabase browser client (doesn't change between renders)
+  const supabase = useRef(getSupabaseClient())
+  // Current authenticated user (null = not signed in or auth not yet loaded)
+  const [user, setUser] = useState<any>(null)
+  // Mirror user in a ref so auto-save effects can read it without re-running
+  const userRef = useRef<any>(null)
+  useEffect(() => { userRef.current = user }, [user])
+
+  // ─── Core state ─────────────────────────────────────────────────────────────
   const [notes, setNotes] = useState<Note[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -110,16 +136,106 @@ export default function NotesPage() {
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const { toast } = useToast()
 
+  // ─── Prev-state refs for Supabase diff-sync ─────────────────────────────────
+  // Populated during bootstrap so initial data doesn't fire unnecessary upserts
+  const prevNotesRef        = useRef<Note[]>([])
+  const prevPeopleRef       = useRef<Person[]>([])
+  const prevFoldersRef      = useRef<Folder[]>([])
+  const prevObjTypesRef     = useRef<ObjectType[]>([])
+  const prevDelTypesRef     = useRef<string[]>([])
+  const prevInboxRef        = useRef<InboxItem[]>([])
+
+  // ─── Bootstrap — async to support Supabase loading ──────────────────────────
   useEffect(() => {
-    const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
-    setNotes(loaded)
-    if (loaded.length > 0) setActiveId(loaded[0].id)
-    setPeople(loadPeople())
-    setCustomObjectTypes(loadObjectTypes())
-    setDeletedObjectTypes(loadDeletedObjectTypes())
-    setFolders(loadFolders())
-    setInboxItems(loadInbox())
-    setMounted(true)
+    let isMounted = true
+
+    async function bootstrap() {
+      const sb = supabase.current
+
+      // 1. Identify the current user
+      const { data: { user: currentUser } } = await sb.auth.getUser().catch(
+        () => ({ data: { user: null } }) as any
+      )
+      if (!isMounted) return
+
+      let loadedNotes:       Note[]        = []
+      let loadedPeople:      Person[]      = []
+      let loadedFolders:     Folder[]      = []
+      let loadedObjTypes:    ObjectType[]  = []
+      let loadedDelTypes:    string[]      = []
+      let loadedInbox:       InboxItem[]   = []
+
+      if (currentUser) {
+        try {
+          // 2a. Migrate any existing localStorage data on first ever login
+          await migrateIfNeeded(sb, currentUser.id)
+
+          // 2b. Load all collections from Supabase in parallel
+          const [dbNotes, dbPeople, dbFolders, dbObjTypes, dbDelTypes, dbInbox] =
+            await Promise.all([
+              dbLoadNotes(sb, currentUser.id),
+              dbLoadPeople(sb, currentUser.id),
+              dbLoadFolders(sb, currentUser.id),
+              dbLoadObjectTypes(sb, currentUser.id),
+              dbLoadDeletedObjectTypes(sb, currentUser.id),
+              dbLoadInbox(sb, currentUser.id),
+            ])
+
+          // Use Supabase data if we got anything, otherwise fall back to localStorage
+          loadedNotes    = dbNotes.length     > 0 ? dbNotes    : loadNotes()
+          loadedPeople   = dbPeople
+          loadedFolders  = dbFolders
+          loadedObjTypes = dbObjTypes
+          loadedDelTypes = dbDelTypes
+          loadedInbox    = dbInbox.length     > 0 ? dbInbox    : loadInbox()
+        } catch (err) {
+          // Supabase unavailable — fall back to localStorage (offline mode)
+          console.warn('[locus] Supabase load failed, using localStorage:', err)
+          loadedNotes    = loadNotes()
+          loadedPeople   = loadPeople()
+          loadedFolders  = loadFolders()
+          loadedObjTypes = loadObjectTypes()
+          loadedDelTypes = loadDeletedObjectTypes()
+          loadedInbox    = loadInbox()
+        }
+      } else {
+        // 2c. No auth — pure localStorage mode
+        loadedNotes    = loadNotes()
+        loadedPeople   = loadPeople()
+        loadedFolders  = loadFolders()
+        loadedObjTypes = loadObjectTypes()
+        loadedDelTypes = loadDeletedObjectTypes()
+        loadedInbox    = loadInbox()
+      }
+
+      // 3. Normalise blocks and hydrate state
+      const normalizedNotes = loadedNotes.map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
+
+      // Guard against React Strict Mode double-invocation
+      if (!isMounted) return
+
+      // Seed prev-refs BEFORE setMounted so auto-save effects don't fire false diffs
+      prevNotesRef.current    = normalizedNotes
+      prevPeopleRef.current   = loadedPeople
+      prevFoldersRef.current  = loadedFolders
+      prevObjTypesRef.current = loadedObjTypes
+      prevDelTypesRef.current = loadedDelTypes
+      prevInboxRef.current    = loadedInbox
+
+      setUser(currentUser)
+      userRef.current = currentUser
+      setNotes(normalizedNotes)
+      if (normalizedNotes.length > 0) setActiveId(normalizedNotes[0].id)
+      setPeople(loadedPeople)
+      setCustomObjectTypes(loadedObjTypes)
+      setDeletedObjectTypes(loadedDelTypes)
+      setFolders(loadedFolders)
+      setInboxItems(loadedInbox)
+      setMounted(true)
+    }
+
+    bootstrap()
+    return () => { isMounted = false }
   }, [])
 
   // Graph panel resize via drag handle
@@ -170,34 +286,89 @@ export default function NotesPage() {
   useEffect(() => { localStorage.setItem('locus-col2-width', String(col2Width)) }, [col2Width])
   useEffect(() => { localStorage.setItem('locus-graph-width', String(graphWidth)) }, [graphWidth])
 
-  // Auto-save notes
+  // ─── Write-through auto-saves (localStorage + Supabase diff) ─────────────────
+  // localStorage is always written first (sync, instant).
+  // If the user is authenticated, changed/new/removed records are also synced
+  // to Supabase in the background (fire-and-forget via .catch(console.warn)).
+
+  // Notes — diff by updatedAt / trashedAt / lastViewed change or new id
   useEffect(() => {
-    if (mounted) saveNotes(notes)
+    if (!mounted) return
+    saveNotes(notes)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevNotesRef.current = notes; return }
+
+    const changed = notes.filter(n => {
+      const prev = prevNotesRef.current.find(p => p.id === n.id)
+      return (
+        !prev ||
+        prev.updatedAt  !== n.updatedAt  ||
+        prev.trashedAt  !== n.trashedAt  ||
+        prev.lastViewed !== n.lastViewed
+      )
+    })
+    const removed = prevNotesRef.current.filter(p => !notes.some(n => n.id === p.id))
+
+    if (changed.length > 0) changed.forEach(n => dbUpsertNote(sb, n, u.id).catch(console.warn))
+    if (removed.length > 0) removed.forEach(n => dbDeleteNote(sb, n.id, u.id).catch(console.warn))
+
+    prevNotesRef.current = notes
   }, [notes, mounted])
 
-  // Auto-save people
+  // People
   useEffect(() => {
-    if (mounted) savePeople(people)
+    if (!mounted) return
+    savePeople(people)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevPeopleRef.current = people; return }
+    dbSyncPeople(sb, people, prevPeopleRef.current, u.id).catch(console.warn)
+    prevPeopleRef.current = people
   }, [people, mounted])
 
-  // Auto-save custom object types
+  // Custom object types
   useEffect(() => {
-    if (mounted) saveObjectTypes(customObjectTypes)
+    if (!mounted) return
+    saveObjectTypes(customObjectTypes)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevObjTypesRef.current = customObjectTypes; return }
+    dbSyncObjectTypes(sb, customObjectTypes, prevObjTypesRef.current, u.id).catch(console.warn)
+    prevObjTypesRef.current = customObjectTypes
   }, [customObjectTypes, mounted])
 
-  // Auto-save deleted object types
+  // Deleted object types
   useEffect(() => {
-    if (mounted) saveDeletedObjectTypes(deletedObjectTypes)
+    if (!mounted) return
+    saveDeletedObjectTypes(deletedObjectTypes)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevDelTypesRef.current = deletedObjectTypes; return }
+    dbSyncDeletedObjectTypes(sb, deletedObjectTypes, prevDelTypesRef.current, u.id).catch(console.warn)
+    prevDelTypesRef.current = deletedObjectTypes
   }, [deletedObjectTypes, mounted])
 
-  // Auto-save folders
+  // Folders
   useEffect(() => {
-    if (mounted) saveFolders(folders)
+    if (!mounted) return
+    saveFolders(folders)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevFoldersRef.current = folders; return }
+    dbSyncFolders(sb, folders, prevFoldersRef.current, u.id).catch(console.warn)
+    prevFoldersRef.current = folders
   }, [folders, mounted])
 
-  // Auto-save inbox items
+  // Inbox items
   useEffect(() => {
-    if (mounted) saveInbox(inboxItems)
+    if (!mounted) return
+    saveInbox(inboxItems)
+    const u  = userRef.current
+    const sb = supabase.current
+    if (!u) { prevInboxRef.current = inboxItems; return }
+    dbSyncInbox(sb, inboxItems, prevInboxRef.current, u.id).catch(console.warn)
+    prevInboxRef.current = inboxItems
   }, [inboxItems, mounted])
 
   // Track lastViewed: update when the active note changes (or when app first mounts)
@@ -378,6 +549,12 @@ export default function NotesPage() {
       // No linked note — just remove the person record directly
       setPeople(prev => prev.filter(p => p.id !== personId))
     }
+  }
+
+  async function handleSignOut() {
+    await supabase.current.auth.signOut()
+    router.push('/auth')
+    router.refresh()
   }
 
   function createObjectType(name: string, emoji: string): ObjectType {
@@ -689,6 +866,7 @@ export default function NotesPage() {
                   setActiveTag(null)
                   setSelectedObjectTypeId(null)
                 }}
+                onSignOut={user ? handleSignOut : undefined}
               />
             </div>
 
