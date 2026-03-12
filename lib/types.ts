@@ -45,6 +45,30 @@ export interface Note {
     personId?: string
     folderId?: string | null
     trashedAt?: number   // set when note is moved to trash; absent (or undefined) = live note
+    noteType?: 'task' | 'project' | 'person' | 'meeting' | 'general'
+    dueDate?: string     // ISO date string (optional override; engine also reads from properties)
+    lastViewed?: string  // ISO timestamp; auto-updated when note is opened
+}
+
+// ── Inbox / Reminder ──────────────────────────────────────────────────────────
+
+export type InboxItemType =
+    | 'task_due'
+    | 'project_milestone'
+    | 'person_stale'
+    | 'meeting_upcoming'
+    | 'followup_keyword'
+    | 'catch_up'
+
+export interface InboxItem {
+    id: string
+    noteId: string
+    type: InboxItemType
+    subject: string
+    sender: string   // "Note: [title]" or "System"
+    preview: string  // short plain-text snippet from note content
+    timestamp: string  // ISO
+    read: boolean
 }
 
 export interface Folder {

@@ -1,4 +1,4 @@
-import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem, NoteProperty, PropertyType } from './types'
+import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem, NoteProperty, PropertyType, InboxItem } from './types'
 import { SEED_NOTES, PERSON_EMOJIS, NOTE_ICON_KEYS, NOTE_COLORS } from './constants'
 
 export const STORAGE_KEY = 'locus-notes-v1'
@@ -6,6 +6,7 @@ export const PEOPLE_STORAGE_KEY = 'locus-people-v1'
 export const OBJECT_TYPES_KEY = 'locus-object-types-v1'
 export const DELETED_TYPES_KEY = 'locus-deleted-types-v1'
 export const FOLDERS_STORAGE_KEY = 'locus-folders-v1'
+export const INBOX_STORAGE_KEY = 'locus-inbox'
 
 export function loadFolders(): Folder[] {
     if (typeof window === 'undefined') return []
@@ -196,6 +197,22 @@ export function mkBlock(type: BlockType = 'p'): Block {
 
 export function cloneBlock(b: Block): Block {
     return { id: crypto.randomUUID(), type: b.type, content: b.content, expandedContent: b.expandedContent, checked: b.checked }
+}
+
+// ── Inbox ─────────────────────────────────────────────────────────────────────
+
+export function loadInbox(): InboxItem[] {
+    if (typeof window === 'undefined') return []
+    try {
+        const raw = localStorage.getItem(INBOX_STORAGE_KEY)
+        if (raw) return JSON.parse(raw)
+    } catch {}
+    return []
+}
+
+export function saveInbox(items: InboxItem[]) {
+    if (typeof window === 'undefined') return
+    try { localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(items)) } catch {}
 }
 
 export function normalizeBlocks(blocks: Block[]): Block[] {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw } from "lucide-react"
+import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw, Mail } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -37,9 +37,12 @@ interface NavRailProps {
     onSelectTrash: () => void
     selectedObjectTypeId?: string | null
     onSelectObjectType?: (typeId: string) => void
+    inboxView?: boolean
+    inboxUnread?: number
+    onSelectInbox?: () => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme === 'dark'
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -99,6 +102,31 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
 
             <ScrollArea className="flex-1">
                 <div className="px-3 pb-4 space-y-0.5">
+                    {/* Inbox */}
+                    <button
+                        onClick={onSelectInbox}
+                        className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all text-left",
+                            inboxView
+                                ? "bg-indigo-50 dark:bg-zinc-800 text-indigo-700 dark:text-zinc-100 font-semibold"
+                                : "text-[#374151] dark:text-zinc-400 font-medium hover:bg-slate-50 dark:hover:bg-zinc-800/50 hover:text-[#1a1a2e] dark:hover:text-zinc-200"
+                        )}
+                    >
+                        <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+                            inboxView ? "bg-indigo-100 dark:bg-indigo-950/50" : "bg-slate-100 dark:bg-zinc-700/60"
+                        )}>
+                            <Mail className={cn("w-3.5 h-3.5 transition-colors",
+                                inboxView ? "text-indigo-600 dark:text-indigo-400" : "text-[#9ca3af] dark:text-zinc-500"
+                            )} />
+                        </div>
+                        <span className="flex-1 text-[13px]">Inbox</span>
+                        {(inboxUnread ?? 0) > 0 ? (
+                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0">
+                                {inboxUnread}
+                            </span>
+                        ) : null}
+                    </button>
+
                     {/* All Notes */}
                     <button
                         onClick={() => { onSelectFolder(null); onTagFilter(null) }}

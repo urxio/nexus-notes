@@ -24,9 +24,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import { BlockType, Block, Note, Folder, TreeItem, Person, ObjectType, GNode, GEdge } from "@/lib/types"
+import { BlockType, Block, Note, Folder, TreeItem, Person, ObjectType, GNode, GEdge, InboxItem } from "@/lib/types"
 import { NOTE_COLORS, NOTE_ICON_KEYS, BLOCK_PLACEHOLDERS, SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, PERSON_EMOJIS } from "@/lib/constants"
-import { loadFolders, saveFolders, loadObjectTypes, saveObjectTypes, loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople, mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock, normalizeBlocks, buildTree, defaultPropertiesForType } from "@/lib/storage"
+import { loadFolders, saveFolders, loadObjectTypes, saveObjectTypes, loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople, mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock, normalizeBlocks, buildTree, defaultPropertiesForType, loadInbox, saveInbox } from "@/lib/storage"
 import { buildGraph, tickSim } from "@/lib/graph"
 import { NoteIcon } from "@/components/note-icon"
 import { BLOCK_ICONS } from "@/components/block-icons"
@@ -41,6 +41,7 @@ import { NoteListPanel } from "@/components/note-list-panel"
 import { ObjectBoardPanel } from "@/components/object-board-panel"
 import { NoteEditor } from "@/components/note-editor"
 import { Sidebar } from "@/components/sidebar"
+import { InboxPanel } from "@/components/inbox-panel"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,10 @@ export default function NotesPage() {
   const [splitNoteId, setSplitNoteId] = useState<string | null>(null)
   // Navigation history for chip-based page traversal (breadcrumb trail)
   const [navStack, setNavStack] = useState<string[]>([])
+  // Inbox / Alive reminders
+  const [inboxView, setInboxView] = useState(false)
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
+  const { toast } = useToast()
 
   useEffect(() => {
     const loaded = loadNotes().map(n => ({ ...n, blocks: normalizeBlocks(n.blocks) }))
@@ -113,6 +118,7 @@ export default function NotesPage() {
     setCustomObjectTypes(loadObjectTypes())
     setDeletedObjectTypes(loadDeletedObjectTypes())
     setFolders(loadFolders())
+    setInboxItems(loadInbox())
     setMounted(true)
   }, [])
 
@@ -188,6 +194,175 @@ export default function NotesPage() {
   useEffect(() => {
     if (mounted) saveFolders(folders)
   }, [folders, mounted])
+
+  // Auto-save inbox items
+  useEffect(() => {
+    if (mounted) saveInbox(inboxItems)
+  }, [inboxItems, mounted])
+
+  // Track lastViewed: update when the active note changes (or when app first mounts)
+  useEffect(() => {
+    if (!activeId || !mounted) return
+    setNotes(prev => prev.map(n =>
+      n.id === activeId ? { ...n, lastViewed: new Date().toISOString() } : n
+    ))
+  }, [activeId, mounted])
+
+  // ─── Reminder engine ──────────────────────────────────────────────────────
+
+  function stripHtmlForReminder(html: string): string {
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
+      .replace(/`{1,3}(.*?)`{1,3}/g, '$1').replace(/~~(.*?)~~/g, '$1')
+      .replace(/^[-*+]\s+/gm, '').replace(/^\d+\.\s+/gm, '')
+      .trim()
+  }
+
+  function getNotePreview(note: Note): string {
+    for (const block of note.blocks) {
+      if (block.type !== 'divider' && block.content.trim()) {
+        const plain = stripHtmlForReminder(block.content)
+        if (plain) return plain.slice(0, 120)
+      }
+    }
+    return ''
+  }
+
+  function getNoteContentText(note: Note): string {
+    return note.blocks.map(b => stripHtmlForReminder(b.content + (b.expandedContent ?? ''))).join(' ')
+  }
+
+  function getNoteDateProp(note: Note, propName: string): string | null {
+    const prop = note.properties?.find(p => p.name === propName && p.type === 'date')
+    return prop?.value ? String(prop.value) : null
+  }
+
+  function daysDiff(isoDate: string): number {
+    return (new Date(isoDate).getTime() - Date.now()) / 86_400_000
+  }
+
+  function generateReminders(currentNotes: Note[], currentPeople: Person[], currentInbox: InboxItem[]) {
+    const liveNotes = currentNotes.filter(n => !n.trashedAt)
+    const newItems: InboxItem[] = []
+    // Deduplicate against *unread* items only — so re-alerting works after user reads+acks
+    const existing = new Set(currentInbox.filter(i => !i.read).map(i => `${i.noteId}::${i.type}`))
+
+    for (const note of liveNotes) {
+      // Determine the note's object type (via linked Person record)
+      const linkedPerson = currentPeople.find(p => p.noteId === note.id)
+      const resolvedType = note.noteType ?? (linkedPerson?.typeId as Note['noteType']) ?? 'general'
+
+      const key = (t: InboxItem['type']) => `${note.id}::${t}`
+      const preview = getNotePreview(note)
+      const sender = `Note: ${note.title || 'Untitled'}`
+
+      // 1. task_due — task with Due Date within 7 days
+      if (resolvedType === 'task' && !existing.has(key('task_due'))) {
+        const dueIso = note.dueDate ?? getNoteDateProp(note, 'Due Date')
+        if (dueIso) {
+          const d = daysDiff(dueIso)
+          if (d <= 7) {
+            const daysLabel = d < 0
+              ? `${Math.abs(Math.floor(d))} day${Math.abs(Math.floor(d)) !== 1 ? 's' : ''} overdue`
+              : d < 1 ? 'today' : d < 2 ? 'tomorrow' : `in ${Math.ceil(d)} days`
+            newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'task_due',
+              subject: `Task "${note.title || 'Untitled'}" is due ${daysLabel}`,
+              sender, preview, timestamp: new Date().toISOString(), read: false })
+          }
+        }
+      }
+
+      // 2. project_milestone — project with End Date within 14 days
+      if (resolvedType === 'project' && !existing.has(key('project_milestone'))) {
+        const dueIso = note.dueDate ?? getNoteDateProp(note, 'End Date')
+        if (dueIso) {
+          const d = daysDiff(dueIso)
+          if (d <= 14) {
+            newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'project_milestone',
+              subject: `Project "${note.title || 'Untitled'}" milestone approaching`,
+              sender, preview, timestamp: new Date().toISOString(), read: false })
+          }
+        }
+      }
+
+      // 3. person_stale — person note not viewed in 30+ days
+      if (resolvedType === 'person' && !existing.has(key('person_stale'))) {
+        const lv = note.lastViewed ?? new Date(note.updatedAt).toISOString()
+        const daysSince = (Date.now() - new Date(lv).getTime()) / 86_400_000
+        if (daysSince >= 30) {
+          newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'person_stale',
+            subject: `It's been a while since you checked in with ${note.title || 'Untitled'}`,
+            sender, preview, timestamp: new Date().toISOString(), read: false })
+        }
+      }
+
+      // 4. meeting_upcoming — meeting with Date within 3 days
+      if (resolvedType === 'meeting' && !existing.has(key('meeting_upcoming'))) {
+        const dueIso = note.dueDate ?? getNoteDateProp(note, 'Date')
+        if (dueIso) {
+          const d = daysDiff(dueIso)
+          if (d <= 3) {
+            newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'meeting_upcoming',
+              subject: `Upcoming meeting: ${note.title || 'Untitled'}`,
+              sender, preview, timestamp: new Date().toISOString(), read: false })
+          }
+        }
+      }
+
+      // 5. followup_keyword — note content has "follow up" or "remind me", modified recently
+      if (!existing.has(key('followup_keyword'))) {
+        const contentText = getNoteContentText(note).toLowerCase()
+        const hasKeyword = contentText.includes('follow up') || contentText.includes('remind me')
+        const recentlyEdited = (Date.now() - note.updatedAt) / 86_400_000 <= 7
+        if (hasKeyword && recentlyEdited) {
+          newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'followup_keyword',
+            subject: `Follow-up reminder: ${note.title || 'Untitled'}`,
+            sender, preview, timestamp: new Date().toISOString(), read: false })
+        }
+      }
+
+      // 6. catch_up — any note not viewed in 60+ days
+      if (!existing.has(key('catch_up'))) {
+        const lv = note.lastViewed ?? new Date(note.updatedAt).toISOString()
+        const daysSince = (Date.now() - new Date(lv).getTime()) / 86_400_000
+        if (daysSince >= 60) {
+          newItems.push({ id: crypto.randomUUID(), noteId: note.id, type: 'catch_up',
+            subject: `Catch up on this note: ${note.title || 'Untitled'}`,
+            sender: 'System', preview, timestamp: new Date().toISOString(), read: false })
+        }
+      }
+    }
+
+    if (newItems.length > 0) {
+      setInboxItems(prev => [...newItems, ...prev].slice(0, 100))
+      toast({ description: `📬 ${newItems.length === 1 ? 'New reminder' : `${newItems.length} new reminders`} in your inbox` })
+    }
+  }
+
+  // Keep refs to latest state/function for use inside setInterval (avoids stale closures)
+  const latestNotesRef = useRef<Note[]>([])
+  const latestPeopleRef = useRef<Person[]>([])
+  const latestInboxRef = useRef<InboxItem[]>([])
+  const generateRemindersRef = useRef(generateReminders)
+  useEffect(() => { latestNotesRef.current = notes }, [notes])
+  useEffect(() => { latestPeopleRef.current = people }, [people])
+  useEffect(() => { latestInboxRef.current = inboxItems }, [inboxItems])
+  useEffect(() => { generateRemindersRef.current = generateReminders })
+
+  // Run reminder engine on mount and every 5 minutes
+  useEffect(() => {
+    if (!mounted) return
+    generateRemindersRef.current(latestNotesRef.current, latestPeopleRef.current, latestInboxRef.current)
+    const interval = setInterval(() => {
+      generateRemindersRef.current(latestNotesRef.current, latestPeopleRef.current, latestInboxRef.current)
+    }, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted])
 
   function deletePerson(personId: string) {
     const person = people.find(p => p.id === personId)
@@ -474,7 +649,7 @@ export default function NotesPage() {
               <NavRail
                 folders={folders}
                 selectedFolderId={selectedFolderId}
-                onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false); setSelectedObjectTypeId(null) }}
+                onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false); setSelectedObjectTypeId(null); setInboxView(false) }}
                 people={people}
                 objectTypes={customObjectTypes}
                 deletedObjectTypes={deletedObjectTypes}
@@ -489,20 +664,30 @@ export default function NotesPage() {
                 onSelect={id => { setActiveId(id); setNavStack([]) }}
                 allTags={allTags}
                 activeTag={activeTag}
-                onTagFilter={tag => { setActiveTag(tag); setTrashView(false); setSelectedObjectTypeId(null) }}
+                onTagFilter={tag => { setActiveTag(tag); setTrashView(false); setSelectedObjectTypeId(null); setInboxView(false) }}
                 graphOpen={graphOpen}
                 onToggleGraph={() => { setGraphOpen(p => !p); setSplitNoteId(null) }}
                 notes={liveNotes}
                 onToggleSidebar={() => setSidebarOpen(false)}
                 trashCount={trashCount}
                 trashView={trashView}
-                onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null); setSelectedObjectTypeId(null) }}
+                onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null); setSelectedObjectTypeId(null); setInboxView(false) }}
                 selectedObjectTypeId={selectedObjectTypeId}
                 onSelectObjectType={typeId => {
                   setSelectedObjectTypeId(typeId)
                   setTrashView(false)
                   setSelectedFolderId(null)
                   setActiveTag(null)
+                  setInboxView(false)
+                }}
+                inboxView={inboxView}
+                inboxUnread={inboxItems.filter(i => !i.read).length}
+                onSelectInbox={() => {
+                  setInboxView(true)
+                  setTrashView(false)
+                  setSelectedFolderId(null)
+                  setActiveTag(null)
+                  setSelectedObjectTypeId(null)
                 }}
               />
             </div>
@@ -511,6 +696,23 @@ export default function NotesPage() {
             <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06]"
               style={{ width: col2Width, transition: col2ResizingRef.current ? 'none' : 'width 80ms ease' }}>
               {(() => {
+                // ── Inbox view ──────────────────────────────────────────────
+                if (inboxView) {
+                  return (
+                    <InboxPanel
+                      items={inboxItems}
+                      activeId={activeId}
+                      onSelectItem={item => {
+                        setActiveId(item.noteId)
+                        setNavStack([])
+                        setInboxItems(prev => prev.map(i => i.id === item.id ? { ...i, read: true } : i))
+                      }}
+                      onMarkAllRead={() => setInboxItems(prev => prev.map(i => ({ ...i, read: true })))}
+                      onClearInbox={() => setInboxItems([])}
+                    />
+                  )
+                }
+                // ── Object board or note list ────────────────────────────────
                 const allTypes = [...BUILTIN_OBJECT_TYPES, ...customObjectTypes]
                 const boardType = selectedObjectTypeId ? allTypes.find(t => t.id === selectedObjectTypeId) : null
                 if (boardType) {
@@ -603,13 +805,24 @@ export default function NotesPage() {
                   <BookOpen className="w-6 h-6 text-[#d1d5db] dark:text-zinc-700" />
                 </div>
                 <div className="text-center">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">No page selected</p>
-                  <p className="text-[13px] mt-1 text-[#9ca3af] dark:text-zinc-600">Select a note or create a new one</p>
+                  {inboxView ? (
+                    <>
+                      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">Inbox</p>
+                      <p className="text-[13px] mt-1 text-[#9ca3af] dark:text-zinc-600">Click a reminder to open the note</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">No page selected</p>
+                      <p className="text-[13px] mt-1 text-[#9ca3af] dark:text-zinc-600">Select a note or create a new one</p>
+                    </>
+                  )}
                 </div>
-                <button onClick={createNote}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] transition-colors shadow-sm">
-                  <Plus className="w-4 h-4" /> New note
-                </button>
+                {!inboxView && (
+                  <button onClick={createNote}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] transition-colors shadow-sm">
+                    <Plus className="w-4 h-4" /> New note
+                  </button>
+                )}
               </div>
             )}
           </div>
