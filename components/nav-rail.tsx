@@ -253,7 +253,12 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                 {typeObjects.map(person => (
                                                     <div key={person.id} className="group/person flex items-center">
                                                         <button
-                                                            onClick={() => person.noteId && onSelect(person.noteId)}
+                                                            onClick={() => {
+                                                                if (person.noteId) {
+                                                                    onSelectObjectType?.(objType.id)
+                                                                    onSelect(person.noteId)
+                                                                }
+                                                            }}
                                                             onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'person', id: person.id }) }}
                                                             className={cn(
                                                                 "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] transition-all text-left",
