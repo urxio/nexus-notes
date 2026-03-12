@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useMemo } from "react"
-import { Plus, Settings2, Check, X, UserCircle } from "lucide-react"
+import { createPortal } from "react-dom"
+import { Plus, Settings2, Check, X, UserCircle, Columns2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Note, Person, ObjectType, NoteProperty } from "@/lib/types"
 import { NoteIcon } from "@/components/note-icon"
@@ -16,6 +17,7 @@ interface ObjectBoardPanelProps {
     activeId: string | null
     onSelectObject: (noteId: string) => void
     onCreateObject: (name: string, typeId: string) => Person
+    onOpenInSplit?: (noteId: string) => void
 }
 
 function chipStyle(color: string) {
@@ -113,12 +115,13 @@ function PropValue({ prop, people }: { prop: NoteProperty; people: Person[] }) {
 }
 
 export function ObjectBoardPanel({
-    objectType, objects, notes, people, activeId, onSelectObject, onCreateObject
+    objectType, objects, notes, people, activeId, onSelectObject, onCreateObject, onOpenInSplit
 }: ObjectBoardPanelProps) {
     const [newName, setNewName] = useState('')
     const [creating, setCreating] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const settingsRef = useRef<HTMLDivElement>(null)
+    const [cardCtxMenu, setCardCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
     // Canonical property names for this type ONLY — never mix in props from other types
     const allPropNames = useMemo(() => {
@@ -296,6 +299,7 @@ export function ObjectBoardPanel({
                             return (
                                 <button key={obj.id}
                                     onClick={() => obj.noteId && onSelectObject(obj.noteId)}
+                                    onContextMenu={e => { e.preventDefault(); if (obj.noteId) setCardCtxMenu({ x: e.clientX, y: e.clientY, noteId: obj.noteId }) }}
                                     className={cn(
                                         "w-full text-left p-3.5 rounded-xl transition-all cursor-pointer",
                                         isActive
@@ -353,6 +357,29 @@ export function ObjectBoardPanel({
                     </div>
                 )}
             </ScrollArea>
+
+            {/* Card context menu */}
+            {cardCtxMenu && createPortal(
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCardCtxMenu(null)} />
+                    <div className="fixed z-50 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-[#e5e7eb] dark:border-zinc-800 py-2 min-w-[180px] overflow-hidden"
+                        style={{ left: cardCtxMenu.x, top: cardCtxMenu.y }}>
+                        <button onClick={() => { onSelectObject(cardCtxMenu.noteId); setCardCtxMenu(null) }}
+                            className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-[#374151] dark:text-zinc-400 transition-colors">
+                            <Columns2 className="w-3.5 h-3.5 text-[#9ca3af] flex-shrink-0" />
+                            Open
+                        </button>
+                        {onOpenInSplit && (
+                            <button onClick={() => { onOpenInSplit(cardCtxMenu.noteId); setCardCtxMenu(null) }}
+                                className="w-full text-left px-4 py-2 text-[12px] hover:bg-[#f9fafb] dark:hover:bg-zinc-800 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 transition-colors">
+                                <Columns2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                Open in split view
+                            </button>
+                        )}
+                    </div>
+                </>,
+                document.body
+            )}
         </div>
     )
 }

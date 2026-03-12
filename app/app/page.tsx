@@ -100,6 +100,8 @@ export default function NotesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [trashView, setTrashView] = useState(false)
   const [selectedObjectTypeId, setSelectedObjectTypeId] = useState<string | null>(null)
+  // Split view: shows a second note in place of the graph panel
+  const [splitNoteId, setSplitNoteId] = useState<string | null>(null)
   // Navigation history for chip-based page traversal (breadcrumb trail)
   const [navStack, setNavStack] = useState<string[]>([])
 
@@ -489,7 +491,7 @@ export default function NotesPage() {
                 activeTag={activeTag}
                 onTagFilter={tag => { setActiveTag(tag); setTrashView(false); setSelectedObjectTypeId(null) }}
                 graphOpen={graphOpen}
-                onToggleGraph={() => setGraphOpen(p => !p)}
+                onToggleGraph={() => { setGraphOpen(p => !p); setSplitNoteId(null) }}
                 notes={liveNotes}
                 onToggleSidebar={() => setSidebarOpen(false)}
                 trashCount={trashCount}
@@ -525,6 +527,7 @@ export default function NotesPage() {
                       activeId={activeId}
                       onSelectObject={id => { setActiveId(id); setNavStack([]) }}
                       onCreateObject={(name, typeId) => createPerson(name, typeId)}
+                      onOpenInSplit={id => { setSplitNoteId(id); setGraphOpen(false) }}
                     />
                   )
                 }
@@ -544,6 +547,7 @@ export default function NotesPage() {
                     isTrash={trashView}
                     onRestoreNote={restoreNote}
                     onPermanentDeleteNote={permanentlyDeleteNote}
+                    onOpenInSplit={id => { setSplitNoteId(id); setGraphOpen(false) }}
                   />
                 )
               })()}
@@ -610,8 +614,8 @@ export default function NotesPage() {
             )}
           </div>
 
-          {/* Graph card */}
-          {graphOpen && (
+          {/* Graph card or Split view */}
+          {(splitNoteId || graphOpen) && (
             <>
               <div
                 className="flex-shrink-0 w-1 -mx-2 flex items-center justify-center cursor-col-resize group z-10 rounded-xl hover:bg-indigo-100/40 dark:hover:bg-zinc-700/30 transition-colors"
@@ -627,16 +631,50 @@ export default function NotesPage() {
               </div>
               <div className="relative flex-shrink-0 h-full overflow-hidden rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-black/[0.05] dark:ring-white/[0.06]"
                 style={{ width: graphWidth, transition: graphResizingRef.current ? 'none' : 'width 200ms ease' }}>
-                <div className="w-full h-full">
-                  <GraphPanel
-                    notes={liveNotes}
-                    people={people}
-                    activeNoteId={activeId}
-                    onSelectNote={id => { setActiveId(id); setNavStack([]) }}
-                    isExpanded={graphWidth > 420}
-                    onToggleExpand={() => setGraphWidth(w => w > 420 ? 320 : 580)}
-                  />
-                </div>
+                {splitNoteId ? (() => {
+                  const splitNote = liveNotes.find(n => n.id === splitNoteId)
+                  return splitNote ? (
+                    <div className="relative w-full h-full bg-white dark:bg-zinc-950">
+                      {/* Close split button */}
+                      <button
+                        onClick={() => setSplitNoteId(null)}
+                        title="Close split view"
+                        className="absolute top-3 right-3 z-20 w-7 h-7 rounded-xl bg-[#f9fafb] dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center justify-center transition-all shadow-sm border border-[#e5e7eb] dark:border-zinc-700 hover:border-red-200 dark:hover:border-red-800 group"
+                      >
+                        <X className="w-3.5 h-3.5 text-[#9ca3af] dark:text-zinc-400 group-hover:text-red-500 transition-colors" />
+                      </button>
+                      <NoteEditor
+                        key={splitNote.id}
+                        note={splitNote}
+                        allTags={allTags}
+                        onChange={updateNote}
+                        onDelete={id => { deleteNote(id); if (id === splitNoteId) setSplitNoteId(null) }}
+                        people={people}
+                        onCreatePerson={createPerson}
+                        onNavigateTo={navigateTo}
+                        navStack={navStack.map(id => liveNotes.find(n => n.id === id)).filter((n): n is Note => !!n)}
+                        onBreadcrumbNav={navigateToBreadcrumb}
+                        objectTypes={customObjectTypes}
+                        deletedObjectTypes={deletedObjectTypes}
+                        onCreateObjectType={createObjectType}
+                        sidebarOpen={sidebarOpen}
+                        onToggleSidebar={() => setSidebarOpen(true)}
+                        notes={notes}
+                      />
+                    </div>
+                  ) : null
+                })() : (
+                  <div className="w-full h-full">
+                    <GraphPanel
+                      notes={liveNotes}
+                      people={people}
+                      activeNoteId={activeId}
+                      onSelectNote={id => { setActiveId(id); setNavStack([]) }}
+                      isExpanded={graphWidth > 420}
+                      onToggleExpand={() => setGraphWidth(w => w > 420 ? 320 : 580)}
+                    />
+                  </div>
+                )}
               </div>
             </>
           )}
