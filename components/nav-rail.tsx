@@ -57,6 +57,7 @@ interface NavRailProps {
 export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme !== 'light'
+    const isTerminal = resolvedTheme === 'terminal'
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
     const [editingName, setEditingName] = useState('')
     const [creatingType, setCreatingType] = useState<string | null>(null)
@@ -92,7 +93,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
             style={{
                 backdropFilter: 'blur(40px)',
                 WebkitBackdropFilter: 'blur(40px)',
-                background: dark ? 'rgba(10,10,22,0.55)' : 'rgba(255,255,255,0.42)',
+                background: isTerminal ? 'rgba(16,16,16,0.92)' : dark ? 'rgba(10,10,22,0.55)' : 'rgba(255,255,255,0.42)',
             }}
         >
             {/* Identity header */}

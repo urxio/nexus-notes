@@ -86,6 +86,9 @@ const DARK_BG =
   'radial-gradient(ellipse 50% 44% at 20% 88%, rgba(20,184,166,0.08) 0%, transparent 46%),' +
   '#07070f'
 
+// Terminal: flat warm black, no colour gradients
+const TERMINAL_BG = '#0e0e0e'
+
 export default function NotesPage() {
   const { resolvedTheme } = useTheme()
   const router = useRouter()
@@ -817,7 +820,7 @@ export default function NotesPage() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="flex h-screen overflow-hidden p-3 gap-3"
-        style={{ background: mounted && resolvedTheme !== 'light' ? DARK_BG : LIGHT_BG }}>
+        style={{ background: !mounted ? LIGHT_BG : resolvedTheme === 'terminal' ? TERMINAL_BG : resolvedTheme === 'dark' ? DARK_BG : LIGHT_BG }}>
 
         {sidebarOpen && (
           <>
