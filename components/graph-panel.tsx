@@ -19,7 +19,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         cardFill: '#131929', cardActiveFill: '#0d1f38',
         cardBorder: '#1e2d45', cardActiveBorder: '#3b82f6',
         cardShadow: '#060c18', cardActiveShadow: '#1d3a6e',
-        edgeDefault: '#162030', edgeHover: '#264460', edgeActive: '#3b82f6',
+        edgeDefault: '#1e2d3e', edgeHover: '#264460', edgeActive: '#3b82f6',
         tagFill: '#0f1520', tagActiveFill: '#0d1f38',
         tagBorder: '#1a2a40', tagActiveBorder: '#3b82f6',
         portDefault: '#1e2d45', portHover: '#3b82f6',
@@ -30,22 +30,28 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#3b82f6',
         ctrlActiveText: '#93c5fd', ctrlActiveBg: '#0d1f38', ctrlActiveBorder: '#3b82f6',
         empty: '#1a2a40',
+        // dot-node specific
+        nodeFill: '#253040', nodeHovFill: '#2e4060', nodeActiveFill: '#3b82f6',
+        tagNodeFill: '#161f2e', tagNodeActiveFill: '#1a3565',
     } : {
         bg: 'rgba(248,250,252,0.92)', dot: '#e2e8f0',
         cardFill: '#ffffff', cardActiveFill: '#eef2ff',
         cardBorder: '#e5e7eb', cardActiveBorder: '#6366f1',
         cardShadow: '#c7d2fe', cardActiveShadow: '#6366f1',
-        edgeDefault: '#e5e7eb', edgeHover: '#a5b4fc', edgeActive: '#6366f1',
+        edgeDefault: '#dde2ea', edgeHover: '#a5b4fc', edgeActive: '#6366f1',
         tagFill: '#f9fafb', tagActiveFill: '#eef2ff',
         tagBorder: '#e5e7eb', tagActiveBorder: '#a5b4fc',
         portDefault: '#e5e7eb', portHover: '#6366f1',
-        textNote: '#6b7280', textNoteActive: '#4338ca', textNoteHover: '#374151',
-        textTag: '#9ca3af', textTagActive: '#4f46e5', textTagHover: '#6366f1',
+        textNote: '#7b8a9a', textNoteActive: '#2563eb', textNoteHover: '#4b6280',
+        textTag: '#a0aab8', textTagActive: '#4f46e5', textTagHover: '#6366f1',
         tooltip: 'rgba(255,255,255,0.97)', tooltipBorder: '#e5e7eb', tooltipText: '#374151',
         header: '#9ca3af', ctrl: 'rgba(255,255,255,0.90)', ctrlBorder: '#e5e7eb', ctrlText: '#9ca3af',
         ctrlHoverText: '#6366f1', ctrlHoverBorder: '#a5b4fc',
         ctrlActiveText: '#4338ca', ctrlActiveBg: '#eef2ff', ctrlActiveBorder: '#a5b4fc',
         empty: '#d1d5db',
+        // dot-node specific
+        nodeFill: '#bfc8d4', nodeHovFill: '#8fa0b4', nodeActiveFill: '#3b82f6',
+        tagNodeFill: '#dde2ea', tagNodeActiveFill: '#a5b4fc',
     }
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -301,20 +307,11 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         visibleEdges = allEdges
     }
 
-    // Card half-dimensions
-    const NW = 64, NH = 19
-    const TW = 38, TH = 13
-
-    function port(node: GNode, tx: number): { x: number; y: number } {
-        const hw = node.type === 'note' ? NW : TW
-        return { x: tx >= node.x ? node.x + hw : node.x - hw, y: node.y }
-    }
-
-    function bezier(sp: { x: number; y: number }, tp: { x: number; y: number }): string {
-        const cx = Math.max(55, Math.abs(tp.x - sp.x) * 0.55)
-        const sx = tp.x >= sp.x ? 1 : -1
-        return `M ${sp.x} ${sp.y} C ${sp.x + sx * cx} ${sp.y} ${tp.x - sx * cx} ${tp.y} ${tp.x} ${tp.y}`
-    }
+    // Dot node visual radius constants (separate from physics r)
+    const NOTE_DOT_R = 5.5
+    const NOTE_DOT_R_HOV = 7
+    const NOTE_DOT_R_ACTIVE = 8.5
+    const TAG_DOT_R = 3.5
 
     const hoveredNode = visibleNodes.find(n => n.id === hovered)
 
@@ -342,20 +339,14 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                     <pattern id="g-dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
                         <circle cx="1" cy="1" r="0.85" fill={T.dot} />
                     </pattern>
-                    <filter id="f-card" x="-15%" y="-30%" width="130%" height="160%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor={T.cardShadow} floodOpacity={dark ? '0.5' : '0.18'} />
-                    </filter>
-                    <filter id="f-card-active" x="-15%" y="-30%" width="130%" height="160%">
-                        <feDropShadow dx="0" dy="3" stdDeviation="5" floodColor={T.cardActiveShadow} floodOpacity="0.35" />
-                    </filter>
-                    <filter id="f-eglow" x="-5%" y="-300%" width="110%" height="700%">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b" />
+                    <filter id="f-eglow" x="-80%" y="-80%" width="260%" height="260%">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b" />
                         <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
                     </filter>
-                    <style>{`
-            @keyframes gph-flow { from{stroke-dashoffset:18} to{stroke-dashoffset:0} }
-            .gph-dash { animation: gph-flow .8s linear infinite; }
-          `}</style>
+                    <filter id="f-node-glow" x="-100%" y="-100%" width="300%" height="300%">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b" />
+                        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
                 </defs>
 
                 <rect width="100%" height="100%" fill={T.bg} />
@@ -369,26 +360,26 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                         if (!s || !t) return null
                         const isActive = s.noteId === activeNoteId || t.noteId === activeNoteId
                         const isHov = s.id === hovered || t.id === hovered
-                        const sp = port(s, t.x), tp = port(t, s.x)
-                        const d = bezier(sp, tp)
 
                         if (isActive) return (
                             <g key={i}>
-                                <path d={d} fill="none" stroke={T.edgeActive} strokeWidth={3.5} strokeOpacity={0.2} filter="url(#f-eglow)" />
-                                <path d={d} fill="none" stroke={T.edgeActive} strokeWidth={1.5} strokeOpacity={0.85}
-                                    strokeDasharray="5 4" className="gph-dash" />
+                                <line x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                                    stroke={T.edgeActive} strokeWidth={2.5} strokeOpacity={0.18} filter="url(#f-eglow)" />
+                                <line x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                                    stroke={T.edgeActive} strokeWidth={1} strokeOpacity={0.7} />
                             </g>
                         )
                         return (
-                            <path key={i} d={d} fill="none"
+                            <line key={i}
+                                x1={s.x} y1={s.y} x2={t.x} y2={t.y}
                                 stroke={isHov ? T.edgeHover : T.edgeDefault}
-                                strokeWidth={isHov ? 1.5 : 1}
-                                strokeOpacity={isHov ? 0.9 : 0.7}
+                                strokeWidth={isHov ? 1 : 0.75}
+                                strokeOpacity={isHov ? 0.8 : 0.6}
                             />
                         )
                     })}
 
-                    {/* ── Tag nodes (pills) ── */}
+                    {/* ── Tag nodes (dots) ── */}
                     {visibleNodes.filter(n => n.type === 'tag').map(node => {
                         const isHov = node.id === hovered
                         const connectedNotes = visibleEdges
@@ -398,72 +389,48 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
 
                         return (
                             <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                                <rect x={-TW} y={-TH} width={TW * 2} height={TH * 2} rx={TH}
-                                    fill={isActive ? T.tagActiveFill : T.tagFill}
-                                    stroke={isActive ? T.tagActiveBorder : isHov ? T.edgeHover : T.tagBorder}
-                                    strokeWidth={isActive ? 1.5 : 1}
-                                    filter="url(#f-card)"
+                                <circle r={TAG_DOT_R}
+                                    fill={isActive ? T.tagNodeActiveFill : isHov ? T.nodeHovFill : T.tagNodeFill}
                                 />
-                                <circle cx={-TW} cy={0} r={4}
-                                    fill={isActive ? T.edgeActive : isHov ? T.portHover : T.portDefault}
-                                    stroke={T.cardFill} strokeWidth={1.5}
-                                />
-                                <circle cx={TW} cy={0} r={4}
-                                    fill={isActive ? T.edgeActive : isHov ? T.portHover : T.portDefault}
-                                    stroke={T.cardFill} strokeWidth={1.5}
-                                />
-                                <text textAnchor="middle" dominantBaseline="central" fontSize={8.5}
+                                <text y={TAG_DOT_R + 9} textAnchor="middle" fontSize={8}
                                     fill={isActive ? T.textTagActive : isHov ? T.textTagHover : T.textTag}
-                                    fontWeight={isActive ? '600' : '500'}
-                                    style={{ pointerEvents: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif', userSelect: 'none' }}
+                                    fontWeight={isActive ? '600' : '400'}
+                                    style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}
                                 >
-                                    #{node.label.length > 9 ? node.label.slice(0, 9) + '…' : node.label}
+                                    #{node.label.length > 11 ? node.label.slice(0, 11) + '…' : node.label}
                                 </text>
                             </g>
                         )
                     })}
 
-                    {/* ── Note nodes (cards) ── */}
+                    {/* ── Note nodes (dots) ── */}
                     {visibleNodes.filter(n => n.type === 'note').map(node => {
                         const isActive = node.noteId === activeNoteId
                         const isHov = node.id === hovered
+                        const dotR = isActive ? NOTE_DOT_R_ACTIVE : isHov ? NOTE_DOT_R_HOV : NOTE_DOT_R
+                        const fill = isActive ? T.nodeActiveFill : isHov ? T.nodeHovFill : T.nodeFill
 
                         return (
                             <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                                <rect x={-NW} y={-NH} width={NW * 2} height={NH * 2} rx={7}
-                                    fill={isActive ? T.cardActiveFill : T.cardFill}
-                                    stroke={isActive ? T.cardActiveBorder : isHov ? T.edgeHover : T.cardBorder}
-                                    strokeWidth={isActive ? 1.5 : 1}
-                                    filter={isActive ? 'url(#f-card-active)' : 'url(#f-card)'}
-                                />
-                                <rect x={-NW} y={-NH} width={5} height={NH * 2} rx={7}
-                                    fill={node.color} opacity={isActive ? 1 : isHov ? 0.85 : 0.7}
-                                />
-                                <rect x={-NW + 5} y={-NH} width={3} height={NH * 2} fill={node.color}
-                                    opacity={isActive ? 0.25 : 0.12}
-                                />
-                                <circle cx={-NW} cy={0} r={5}
-                                    fill={isActive ? node.color : isHov ? node.color : T.portDefault}
-                                    stroke={T.cardFill} strokeWidth={2}
-                                    opacity={isActive ? 1 : isHov ? 0.85 : 0.65}
-                                />
-                                <circle cx={NW} cy={0} r={5}
-                                    fill={isActive ? node.color : isHov ? node.color : T.portDefault}
-                                    stroke={T.cardFill} strokeWidth={2}
-                                    opacity={isActive ? 1 : isHov ? 0.85 : 0.65}
-                                />
-                                <foreignObject x={-NW + 12} y={-10} width={20} height={20} style={{ pointerEvents: 'none' }}>
-                                    <div className="w-full h-full flex items-center justify-center text-stone-500 dark:text-zinc-400">
-                                        <NoteIcon iconName={node.emoji} className="w-4 h-4" />
-                                    </div>
-                                </foreignObject>
-                                <text x={-NW + 36} textAnchor="start" dominantBaseline="central"
-                                    fontSize={10.5}
+                                {/* Soft glow halo for active node */}
+                                {isActive && (
+                                    <circle r={NOTE_DOT_R_ACTIVE + 7} fill={T.nodeActiveFill} opacity={0.18}
+                                        filter="url(#f-node-glow)" />
+                                )}
+                                <circle r={dotR} fill={fill} />
+                                {/* Inner highlight for active */}
+                                {isActive && (
+                                    <circle r={3} fill="white" opacity={0.3} cy={-2} />
+                                )}
+                                <text
+                                    y={dotR + 11}
+                                    textAnchor="middle"
+                                    fontSize={9.5}
                                     fill={isActive ? T.textNoteActive : isHov ? T.textNoteHover : T.textNote}
                                     fontWeight={isActive ? '600' : '500'}
                                     style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}
                                 >
-                                    {node.label.length > 10 ? node.label.slice(0, 10) + '…' : node.label}
+                                    {node.label.length > 14 ? node.label.slice(0, 14) + '…' : node.label}
                                 </text>
                             </g>
                         )
