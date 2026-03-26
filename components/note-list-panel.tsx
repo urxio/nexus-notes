@@ -54,12 +54,12 @@ function getBlockMarkdown(note: Note): Array<{ text: string; type: string }> {
 }
 
 function termLineColor(type: string): string {
-    if (type === 'h1') return '#4ade80'
-    if (type === 'h2') return '#86efac'
-    if (type === 'h3') return '#a7f3d0'
-    if (type === 'quote') return '#6b7280'
-    if (type === 'code') return '#e879f9'
-    return '#8b9ab0'
+    if (type === 'h1') return '#5af0c4'
+    if (type === 'h2') return '#4ecdc4'
+    if (type === 'h3') return '#8fbcaa'
+    if (type === 'quote') return '#4a6b5e'
+    if (type === 'code') return '#9fd6b8'
+    return '#6d9b88'
 }
 
 function TerminalGhostPreview({ note, anchor, formatDate }: {
@@ -77,11 +77,11 @@ function TerminalGhostPreview({ note, anchor, formatDate }: {
         left: anchor.left,
         zIndex: 9998,
         width: 288,
-        background: '#0a0e1c',
-        border: '1px solid rgba(34,211,238,0.18)',
+        background: '#0c1a15',
+        border: '1px solid rgba(78,205,196,0.16)',
         borderRadius: 3,
-        boxShadow: '0 0 0 1px rgba(34,211,238,0.06), 0 16px 48px rgba(0,0,0,0.7)',
-        fontFamily: 'var(--font-mono), ui-monospace, monospace',
+        boxShadow: '0 0 0 1px rgba(78,205,196,0.05), 0 16px 48px rgba(0,0,0,0.72)',
+        fontFamily: 'var(--font-mono), JetBrains Mono, ui-monospace, monospace',
         fontSize: 11,
         lineHeight: '1.55',
         overflow: 'hidden',
@@ -90,23 +90,23 @@ function TerminalGhostPreview({ note, anchor, formatDate }: {
     return (
         <div style={style} className="term-ghost-preview">
             {/* $ cat header */}
-            <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(34,211,238,0.1)', background: '#070a14', color: '#374151' }}>
-                <span style={{ color: '#22d3ee' }}>$ </span>
-                <span style={{ color: '#86efac' }}>cat</span>
-                <span style={{ color: '#6b7280' }}> "{filename}"</span>
+            <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(78,205,196,0.08)', background: '#091210', color: '#2e4a3e' }}>
+                <span style={{ color: '#4ecdc4' }}>$ </span>
+                <span style={{ color: '#8fbcaa' }}>cat</span>
+                <span style={{ color: '#4a6b5e' }}> "{filename}"</span>
             </div>
 
             {/* Line-numbered content */}
             <div style={{ padding: '6px 0', minHeight: 32 }}>
                 {lines.length === 0 ? (
                     <div style={{ display: 'flex', padding: '2px 0' }}>
-                        <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#2a3449', flexShrink: 0, userSelect: 'none' }}>1</span>
-                        <span style={{ color: '#2a3449', fontStyle: 'italic' }}>(empty file)</span>
+                        <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#1f3328', flexShrink: 0, userSelect: 'none' }}>1</span>
+                        <span style={{ color: '#1f3328', fontStyle: 'italic' }}>(empty file)</span>
                     </div>
                 ) : (
                     lines.slice(0, 7).map((line, i) => (
                         <div key={i} style={{ display: 'flex', padding: '1px 0' }}>
-                            <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#2a3449', flexShrink: 0, userSelect: 'none' }}>{i + 1}</span>
+                            <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#1f3328', flexShrink: 0, userSelect: 'none' }}>{i + 1}</span>
                             <span style={{
                                 color: termLineColor(line.type),
                                 overflow: 'hidden',
@@ -122,14 +122,14 @@ function TerminalGhostPreview({ note, anchor, formatDate }: {
             {/* Footer */}
             <div style={{
                 padding: '5px 12px',
-                borderTop: '1px solid rgba(34,211,238,0.08)',
-                background: '#070a14',
+                borderTop: '1px solid rgba(78,205,196,0.07)',
+                background: '#091210',
                 display: 'flex',
                 justifyContent: 'space-between',
-                color: '#2e3c50',
+                color: '#2e4a3e',
                 fontSize: 10,
             }}>
-                <span>{wordCount} <span style={{ color: '#22d3ee', opacity: 0.5 }}>words</span></span>
+                <span>{wordCount} <span style={{ color: '#4ecdc4', opacity: 0.5 }}>words</span></span>
                 <span>{formatDate(note.updatedAt)}</span>
             </div>
         </div>

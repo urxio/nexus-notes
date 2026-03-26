@@ -1179,19 +1179,19 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             {isInsert ? 'INSERT' : 'NORMAL'}
                         </div>
                         {/* Separator */}
-                        <div style={{ width: 1, background: 'rgba(34,211,238,0.12)', flexShrink: 0 }} />
+                        <div style={{ width: 1, background: 'rgba(78,205,196,0.12)', flexShrink: 0 }} />
                         {/* File name */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', color: '#4b5769', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                            <span style={{ color: '#22d3ee', opacity: 0.5, flexShrink: 0 }}>✦</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', color: '#4a6b5e', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                            <span style={{ color: '#4ecdc4', opacity: 0.5, flexShrink: 0 }}>✦</span>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filename}</span>
                         </div>
                         {/* Right stats */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', color: '#374151', flexShrink: 0, fontSize: 9 }}>
-                            <span>{wordCount}<span style={{ color: '#22d3ee', opacity: 0.4, marginLeft: 2 }}>w</span></span>
-                            <span style={{ color: '#1a2236' }}>│</span>
-                            <span>Ln <span style={{ color: '#6b7280' }}>{Math.max(1, focusedBlockIdx + 1)}</span></span>
-                            <span style={{ color: '#1a2236' }}>│</span>
-                            <span style={{ color: '#22d3ee', opacity: 0.35, letterSpacing: '0.1em' }}>:w  :q</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', color: '#2e4a3e', flexShrink: 0, fontSize: 9 }}>
+                            <span>{wordCount}<span style={{ color: '#4ecdc4', opacity: 0.4, marginLeft: 2 }}>w</span></span>
+                            <span style={{ color: '#1a2e24' }}>│</span>
+                            <span>Ln <span style={{ color: '#4a6b5e' }}>{Math.max(1, focusedBlockIdx + 1)}</span></span>
+                            <span style={{ color: '#1a2e24' }}>│</span>
+                            <span style={{ color: '#4ecdc4', opacity: 0.35, letterSpacing: '0.1em' }}>:w  :q</span>
                         </div>
                     </div>
                 )
