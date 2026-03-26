@@ -1,10 +1,35 @@
-import React, { useRef, useState, useEffect, useMemo } from "react"
+import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import { useTheme } from "next-themes"
-import { Maximize2, Minimize2, Network, Locate, Globe } from "lucide-react"
+import { Maximize2, Minimize2, Network, Locate, Globe, RefreshCw } from "lucide-react"
 
 import { Note, Person, GNode, GEdge } from "@/lib/types"
 import { buildGraph, tickSim } from "@/lib/graph"
 import { NoteIcon } from "./note-icon"
+
+// Invisible snap grid for tidy drag placement
+const GRID = 20
+function snapToGrid(v: number) { return Math.round(v / GRID) * GRID }
+
+// Visual radius for note nodes — larger for hubs (3+ connections)
+function noteVisualR(degree: number, isActive: boolean, isHov: boolean): number {
+    const isHub = degree >= 3
+    const base = isHub ? 8.5 : degree <= 1 ? 4.5 : 5.5
+    if (isActive) return base + 3
+    if (isHov) return base + 1.5
+    return base
+}
+
+// Quadratic bezier path between two points with a gentle perpendicular curve
+function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
+    const mx = (sx + tx) / 2
+    const my = (sy + ty) / 2
+    const dx = tx - sx, dy = ty - sy
+    const len = Math.sqrt(dx * dx + dy * dy) || 1
+    const curveAmt = Math.min(len * 0.12, 22)
+    const cpx = mx + (-dy / len) * curveAmt
+    const cpy = my + (dx / len) * curveAmt
+    return `M ${sx} ${sy} Q ${cpx} ${cpy} ${tx} ${ty}`
+}
 
 export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpanded, onToggleExpand }: {
     notes: Note[]; people: Person[]; activeNoteId: string | null; onSelectNote: (id: string) => void
@@ -30,9 +55,9 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         ctrlHoverText: '#3b82f6', ctrlHoverBorder: '#3b82f6',
         ctrlActiveText: '#93c5fd', ctrlActiveBg: '#0d1f38', ctrlActiveBorder: '#3b82f6',
         empty: '#1a2a40',
-        // dot-node specific
         nodeFill: '#253040', nodeHovFill: '#2e4060', nodeActiveFill: '#3b82f6',
         tagNodeFill: '#161f2e', tagNodeActiveFill: '#1a3565',
+        hubGlow: 'rgba(59,130,246,0.12)',
     } : {
         bg: 'rgba(248,250,252,0.92)', dot: '#e2e8f0',
         cardFill: '#ffffff', cardActiveFill: '#eef2ff',
@@ -49,9 +74,9 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         ctrlHoverText: '#6366f1', ctrlHoverBorder: '#a5b4fc',
         ctrlActiveText: '#4338ca', ctrlActiveBg: '#eef2ff', ctrlActiveBorder: '#a5b4fc',
         empty: '#d1d5db',
-        // dot-node specific
         nodeFill: '#bfc8d4', nodeHovFill: '#8fa0b4', nodeActiveFill: '#3b82f6',
         tagNodeFill: '#dde2ea', tagNodeActiveFill: '#a5b4fc',
+        hubGlow: 'rgba(99,102,241,0.10)',
     }
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -67,17 +92,12 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     const [hovered, setHovered] = useState<string | null>(null)
     const panRef = useRef({ active: false, sx: 0, sy: 0, spx: 0, spy: 0, lpx: 0, lpy: 0 })
     const dragRef = useRef<{ id: string; ox: number; oy: number; lpx: number; lpy: number; lvx: number; lvy: number } | null>(null)
-    const panVRef = useRef({ vx: 0, vy: 0 })    // pan inertia velocity (screen px/frame)
-    const afterThrowRef = useRef(0)              // ticks remaining for post-drag sim
+    const panVRef = useRef({ vx: 0, vy: 0 })
+    const afterThrowRef = useRef(0)
 
-    // Keep a ref so the graphKey effect can read the current active note
-    // without becoming a dependency (which would rebuild the graph on every
-    // note-switch, discarding all settled positions).
     const activeNoteIdRef = useRef(activeNoteId)
     useEffect(() => { activeNoteIdRef.current = activeNoteId }, [activeNoteId])
 
-    // ── Local / global mode ────────────────────────────────────────────────
-    // Default: focus on the current page's connections only.
     const [localMode, setLocalMode] = useState(true)
 
     useEffect(() => {
@@ -111,9 +131,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         const existingMap = new Map(nodesRef.current.map(n => [n.id, n]))
         const { nodes, edges } = buildGraph(notes, people, sizeRef.current.w, sizeRef.current.h, existingMap)
 
-        // New nodes that are direct neighbours of the active note should start
-        // near it (not at a random graph-centre position) so they appear
-        // in-viewport immediately rather than animating in from off-screen.
         const activeNode = nodes.find(n => n.noteId === activeNoteIdRef.current)
         if (activeNode) {
             const neighborIds = new Set<string>()
@@ -123,7 +140,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             })
             nodes.forEach(node => {
                 if (neighborIds.has(node.id) && !existingMap.has(node.id)) {
-                    // Brand-new neighbour — spawn it close to the active note
                     const angle = Math.random() * Math.PI * 2
                     node.x = activeNode.x + Math.cos(angle) * 30
                     node.y = activeNode.y + Math.sin(angle) * 30
@@ -140,19 +156,17 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     useEffect(() => {
         function animate() {
             const tc = tickCountRef.current
-            // Decrement afterThrow counter (post-release sim window)
             if (afterThrowRef.current > 0) afterThrowRef.current--
             const alpha = tc < 280
                 ? Math.max(0.05, 1 - tc / 280)
-                : dragRef.current ? 0.18          // higher alpha so neighbours react during drag
-                : afterThrowRef.current > 0 ? 0.12 // post-release throw sim
+                : dragRef.current ? 0.18
+                : afterThrowRef.current > 0 ? 0.12
                 : 0
             if (alpha > 0) {
                 tickSim(nodesRef.current, edgesRef.current, size.w, size.h, alpha)
                 tickCountRef.current++
                 forceRender(k => k + 1)
             }
-            // Pan inertia — coast to a stop after pointer release
             const pv = panVRef.current
             if (!panRef.current.active && (Math.abs(pv.vx) > 0.25 || Math.abs(pv.vy) > 0.25)) {
                 pv.vx *= 0.85
@@ -167,7 +181,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
     }, [size])
 
-    // Auto-center on the active note when entering local mode
     useEffect(() => {
         if (!localMode) return
         const timeout = setTimeout(() => {
@@ -181,6 +194,29 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         }, 60)
         return () => clearTimeout(timeout)
     }, [localMode, activeNoteId])
+
+    // Auto-layout: scatter nodes back to their initial ring positions and let sim re-converge
+    const handleAutoLayout = useCallback(() => {
+        const { w, h } = sizeRef.current
+        const cx = w / 2, cy = h / 2
+        const noteNodes = nodesRef.current.filter(n => n.type === 'note')
+        const tagNodes = nodesRef.current.filter(n => n.type === 'tag')
+        noteNodes.forEach((n, i) => {
+            const a = (i / Math.max(noteNodes.length, 1)) * Math.PI * 2
+            const r = Math.min(w, h) * 0.30
+            n.x = cx + Math.cos(a) * r + (Math.random() - 0.5) * 50
+            n.y = cy + Math.sin(a) * r + (Math.random() - 0.5) * 50
+            n.vx = 0; n.vy = 0
+        })
+        tagNodes.forEach((n, i) => {
+            const a = (i / Math.max(tagNodes.length, 1)) * Math.PI * 2
+            const r = Math.min(w, h) * 0.12
+            n.x = cx + Math.cos(a) * r + (Math.random() - 0.5) * 25
+            n.y = cy + Math.sin(a) * r + (Math.random() - 0.5) * 25
+            n.vx = 0; n.vy = 0
+        })
+        tickCountRef.current = 0  // restarts the simulation
+    }, [])
 
     function toGraph(screenX: number, screenY: number) {
         const rect = containerRef.current!.getBoundingClientRect()
@@ -203,7 +239,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             const { x, y } = toGraph(e.clientX, e.clientY)
             dragRef.current = { id: node.id, ox: x - node.x, oy: y - node.y, lpx: x, lpy: y, lvx: 0, lvy: 0 }
         } else {
-            panVRef.current = { vx: 0, vy: 0 }  // cancel any ongoing inertia
+            panVRef.current = { vx: 0, vy: 0 }
             panRef.current = { active: true, sx: e.clientX, sy: e.clientY, spx: pan.x, spy: pan.y, lpx: e.clientX, lpy: e.clientY }
         }
     }
@@ -216,14 +252,12 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             if (node) {
                 node.x = x - drag.ox
                 node.y = y - drag.oy
-                // Track smoothed velocity so we can throw on release
                 drag.lvx = drag.lvx * 0.6 + (x - drag.lpx) * 0.4
                 drag.lvy = drag.lvy * 0.6 + (y - drag.lpy) * 0.4
                 drag.lpx = x; drag.lpy = y
-                node.vx = 0; node.vy = 0  // prevent sim drift while dragging
+                node.vx = 0; node.vy = 0
             }
         } else if (panRef.current.active) {
-            // Track pan velocity for inertia
             const dx = e.clientX - panRef.current.lpx
             const dy = e.clientY - panRef.current.lpy
             panVRef.current.vx = panVRef.current.vx * 0.3 + dx * 0.7
@@ -244,15 +278,17 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             const moved = node ? Math.abs((x - drag.ox) - node.x) + Math.abs((y - drag.oy) - node.y) : 999
             if (moved < 8 && node?.type === 'note' && node.noteId) onSelectNote(node.noteId)
             if (node) {
-                // Throw! Apply the smoothed drag velocity so the node coasts on release
+                // Snap to invisible grid after drag
+                node.x = snapToGrid(node.x)
+                node.y = snapToGrid(node.y)
+                // Throw velocity
                 node.vx = drag.lvx * 4
                 node.vy = drag.lvy * 4
-                afterThrowRef.current = 60  // keep sim alive for ~1 s to let it play out
+                afterThrowRef.current = 60
             }
             dragRef.current = null
         }
         panRef.current.active = false
-        // panVRef retains its velocity — the RAF loop handles inertia decay
     }
 
     function handleWheel(e: React.WheelEvent) {
@@ -264,11 +300,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
     const allEdges = edgesRef.current
     const nodeMap = new Map(allNodes.map(n => [n.id, n]))
 
-    // ── Local mode filter ────────────────────────────────────────────────────
-    // Show the active note + all its direct neighbours (tags, @mention notes).
-    // Then expand through every tag neighbour to include sibling notes that
-    // share the same tag — so two pages with the same tag both appear,
-    // connected via that shared tag node.
     let visibleNodes: GNode[]
     let visibleEdges: GEdge[]
 
@@ -276,15 +307,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         const activeNode = allNodes.find(n => n.noteId === activeNoteId)
         if (activeNode) {
             const visibleIds = new Set<string>([activeNode.id])
-
-            // Step 1 — direct neighbours of the active note
             allEdges.forEach(e => {
                 if (e.source === activeNode.id) visibleIds.add(e.target)
                 if (e.target === activeNode.id) visibleIds.add(e.source)
             })
-
-            // Step 2 — for every TAG neighbour, pull in all other notes
-            // connected to that same tag (siblings sharing the tag)
             visibleIds.forEach(id => {
                 if (nodeMap.get(id)?.type === 'tag') {
                     allEdges.forEach(e => {
@@ -293,12 +319,9 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                     })
                 }
             })
-
             visibleNodes = allNodes.filter(n => visibleIds.has(n.id))
-            // All edges whose both endpoints are in the visible set
             visibleEdges = allEdges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
         } else {
-            // Active note not yet in graph (e.g. no tags/links) — show nothing
             visibleNodes = []
             visibleEdges = []
         }
@@ -307,15 +330,8 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
         visibleEdges = allEdges
     }
 
-    // Dot node visual radius constants (separate from physics r)
-    const NOTE_DOT_R = 5.5
-    const NOTE_DOT_R_HOV = 7
-    const NOTE_DOT_R_ACTIVE = 8.5
-    const TAG_DOT_R = 3.5
-
     const hoveredNode = visibleNodes.find(n => n.id === hovered)
 
-    // Count connections for the empty-state message
     const activeHasConnections = localMode
         ? (allEdges.some(e => {
             const an = allNodes.find(n => n.noteId === activeNoteId)
@@ -347,6 +363,10 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                         <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b" />
                         <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
                     </filter>
+                    <filter id="f-hub-glow" x="-120%" y="-120%" width="340%" height="340%">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b" />
+                        <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
                 </defs>
 
                 <rect width="100%" height="100%" fill={T.bg} />
@@ -354,70 +374,100 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
 
                 <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
 
-                    {/* ── Edges ── */}
+                    {/* ── Edges (bezier curves) ── */}
                     {visibleEdges.map((edge, i) => {
                         const s = nodeMap.get(edge.source), t = nodeMap.get(edge.target)
                         if (!s || !t) return null
                         const isActive = s.noteId === activeNoteId || t.noteId === activeNoteId
                         const isHov = s.id === hovered || t.id === hovered
+                        const isTagEdge = s.type === 'tag' || t.type === 'tag'
+                        const path = bezierPath(s.x, s.y, t.x, t.y)
 
                         if (isActive) return (
                             <g key={i}>
-                                <line x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                                    stroke={T.edgeActive} strokeWidth={2.5} strokeOpacity={0.18} filter="url(#f-eglow)" />
-                                <line x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                                    stroke={T.edgeActive} strokeWidth={1} strokeOpacity={0.7} />
+                                {/* Glow layer */}
+                                <path d={path} fill="none"
+                                    stroke={T.edgeActive} strokeWidth={3} strokeOpacity={0.14}
+                                    filter="url(#f-eglow)"
+                                    strokeDasharray={isTagEdge ? '4 3' : undefined} />
+                                {/* Solid layer */}
+                                <path d={path} fill="none"
+                                    stroke={T.edgeActive} strokeWidth={1.25} strokeOpacity={0.85}
+                                    strokeDasharray={isTagEdge ? '4 3' : undefined} />
                             </g>
                         )
                         return (
-                            <line key={i}
-                                x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                            <path key={i} d={path} fill="none"
                                 stroke={isHov ? T.edgeHover : T.edgeDefault}
-                                strokeWidth={isHov ? 1 : 0.75}
-                                strokeOpacity={isHov ? 0.8 : 0.6}
+                                strokeWidth={isHov ? 1.25 : 0.85}
+                                strokeOpacity={isHov ? 1.0 : 0.4}
+                                strokeDasharray={isTagEdge ? '4 3' : undefined}
                             />
                         )
                     })}
 
-                    {/* ── Tag nodes (dots) ── */}
+                    {/* ── Tag nodes (pill shape) ── */}
                     {visibleNodes.filter(n => n.type === 'tag').map(node => {
                         const isHov = node.id === hovered
                         const connectedNotes = visibleEdges
                             .filter(e => e.target === node.id || e.source === node.id)
                             .map(e => e.source === node.id ? e.target : e.source)
                         const isActive = connectedNotes.some(nid => nodeMap.get(nid)?.noteId === activeNoteId)
+                        const label = node.label.length > 10 ? node.label.slice(0, 10) + '…' : node.label
+                        const pillW = Math.max(label.length * 5.2 + 16, 28)
+                        const pillH = 13
 
                         return (
                             <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                                <circle r={TAG_DOT_R}
+                                <rect
+                                    x={-pillW / 2} y={-pillH / 2}
+                                    width={pillW} height={pillH}
+                                    rx={pillH / 2}
                                     fill={isActive ? T.tagNodeActiveFill : isHov ? T.nodeHovFill : T.tagNodeFill}
+                                    stroke={isActive ? T.tagActiveBorder : T.tagBorder}
+                                    strokeWidth={isHov ? 1.25 : 0.75}
+                                    opacity={isHov ? 1 : 0.9}
                                 />
-                                <text y={TAG_DOT_R + 9} textAnchor="middle" fontSize={8}
+                                <text
+                                    y={4} textAnchor="middle" fontSize={7.5}
                                     fill={isActive ? T.textTagActive : isHov ? T.textTagHover : T.textTag}
                                     fontWeight={isActive ? '600' : '400'}
                                     style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}
                                 >
-                                    #{node.label.length > 11 ? node.label.slice(0, 11) + '…' : node.label}
+                                    #{label}
                                 </text>
                             </g>
                         )
                     })}
 
-                    {/* ── Note nodes (dots) ── */}
+                    {/* ── Note nodes (degree-aware dots) ── */}
                     {visibleNodes.filter(n => n.type === 'note').map(node => {
                         const isActive = node.noteId === activeNoteId
                         const isHov = node.id === hovered
-                        const dotR = isActive ? NOTE_DOT_R_ACTIVE : isHov ? NOTE_DOT_R_HOV : NOTE_DOT_R
+                        const degree = node.degree ?? 0
+                        const isHub = degree >= 3
+                        const dotR = noteVisualR(degree, isActive, isHov)
                         const fill = isActive ? T.nodeActiveFill : isHov ? T.nodeHovFill : T.nodeFill
 
                         return (
-                            <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                                {/* Soft glow halo for active node */}
+                            <g key={node.id} transform={`translate(${node.x},${node.y})`}
+                                style={{ zIndex: isHub ? 2 : 1 }}>
+                                {/* Hub ambient glow */}
+                                {isHub && !isActive && (
+                                    <circle r={dotR + 9} fill={T.hubGlow} filter="url(#f-hub-glow)" />
+                                )}
+                                {/* Active node glow */}
                                 {isActive && (
-                                    <circle r={NOTE_DOT_R_ACTIVE + 7} fill={T.nodeActiveFill} opacity={0.18}
+                                    <circle r={dotR + 7} fill={T.nodeActiveFill} opacity={0.18}
                                         filter="url(#f-node-glow)" />
                                 )}
                                 <circle r={dotR} fill={fill} />
+                                {/* Hub ring indicator */}
+                                {isHub && !isActive && (
+                                    <circle r={dotR + 2.5} fill="none"
+                                        stroke={dark ? '#2a3f5a' : '#c7d2fe'}
+                                        strokeWidth={0.75} opacity={0.6} />
+                                )}
                                 {/* Inner highlight for active */}
                                 {isActive && (
                                     <circle r={3} fill="white" opacity={0.3} cy={-2} />
@@ -425,9 +475,9 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                                 <text
                                     y={dotR + 11}
                                     textAnchor="middle"
-                                    fontSize={9.5}
+                                    fontSize={isHub ? 10 : 9}
                                     fill={isActive ? T.textNoteActive : isHov ? T.textNoteHover : T.textNote}
-                                    fontWeight={isActive ? '600' : '500'}
+                                    fontWeight={isHub || isActive ? '600' : '500'}
                                     style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}
                                 >
                                     {node.label.length > 14 ? node.label.slice(0, 14) + '…' : node.label}
@@ -445,6 +495,7 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                         style={{ background: T.tooltip, border: `1px solid ${T.tooltipBorder}`, color: T.tooltipText, backdropFilter: 'blur(8px)', fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>
                         {hoveredNode.type === 'note' && <NoteIcon iconName={hoveredNode.emoji} className="w-3.5 h-3.5 opacity-80" />}
                         <span>{hoveredNode.type === 'tag' ? `#${hoveredNode.label}` : hoveredNode.label}</span>
+                        {(hoveredNode.degree ?? 0) >= 3 && <span style={{ color: T.textTag, fontSize: 9 }}>{hoveredNode.degree} links</span>}
                     </div>
                 </div>
             )}
@@ -457,6 +508,18 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
                         style={{ color: T.header, fontFamily: 'ui-sans-serif,system-ui,sans-serif' }}>Graph</span>
                 </div>
                 <div className="flex items-center gap-1 pointer-events-auto">
+                    {/* Auto-layout */}
+                    <button
+                        className="w-6 h-6 rounded-md flex items-center justify-center transition-all"
+                        style={{ background: T.ctrl, border: `1px solid ${T.ctrlBorder}`, color: T.ctrlText }}
+                        onMouseEnter={e => { const el = e.currentTarget; el.style.color = T.ctrlHoverText; el.style.borderColor = T.ctrlHoverBorder }}
+                        onMouseLeave={e => { const el = e.currentTarget; el.style.color = T.ctrlText; el.style.borderColor = T.ctrlBorder }}
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={handleAutoLayout}
+                        title="Auto-layout nodes"
+                    >
+                        <RefreshCw className="w-3 h-3" />
+                    </button>
                     {/* Local / All toggle */}
                     <button
                         className="flex items-center gap-1 h-6 px-2 rounded-md text-[9px] font-semibold tracking-wider uppercase transition-all"

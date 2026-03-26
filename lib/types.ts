@@ -101,6 +101,7 @@ export interface ObjectType {
 export interface GNode {
     id: string; type: 'note' | 'tag'; label: string; color: string
     emoji?: string; x: number; y: number; vx: number; vy: number; r: number; noteId?: string
+    degree?: number
 }
 
 export interface GEdge { source: string; target: string }
