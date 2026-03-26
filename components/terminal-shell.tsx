@@ -285,7 +285,7 @@ export function TerminalShell(props: TerminalShellProps) {
             <button className="ts-dock-icon" style={{ width: 24, height: 24 }}
               title="Mark all read"
               onClick={() => setInboxItems(prev => prev.map(i => ({ ...i, read: true })))}>
-              <span style={{ fontSize: 11, color: 'rgba(96,165,250,0.6)' }}>✓</span>
+              <span style={{ fontSize: 11, color: 'rgba(78,205,196,0.65)' }}>✓</span>
             </button>
           </div>
           <InboxPanel
@@ -330,11 +330,11 @@ export function TerminalShell(props: TerminalShellProps) {
                 marginLeft: 'auto', flexShrink: 0,
                 width: 28, height: 28, borderRadius: 7,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(148,163,184,0.3)', cursor: 'pointer',
+                color: 'rgba(74,107,94,0.50)', cursor: 'pointer',
                 transition: 'color 0.12s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(96,165,250,0.7)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(148,163,184,0.3)')}
+              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(78,205,196,0.65)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(74,107,94,0.45)')}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -380,13 +380,13 @@ export function TerminalShell(props: TerminalShellProps) {
 
         {/* Status bar */}
         <div className="ts-statusbar">
-          <div className="ts-sb-item" style={{ color: '#3b82f6', opacity: 0.7 }}>
+          <div className="ts-sb-item" style={{ color: '#4ecdc4', opacity: 0.75 }}>
             <span>◉</span>
             <span style={{ fontSize: 9, letterSpacing: '0.12em' }}>LOCUS</span>
           </div>
           {activeNote && (
             <div className="ts-sb-item">
-              <span style={{ color: 'rgba(96,165,250,0.55)' }}>
+              <span style={{ color: 'rgba(78,205,196,0.55)' }}>
                 {(activeNote.title || 'untitled').toLowerCase().replace(/\s+/g, '_')}.md
               </span>
             </div>
@@ -400,7 +400,7 @@ export function TerminalShell(props: TerminalShellProps) {
           {activeNote && (
             <div className="ts-sb-item">
               {activeNote.tags.map(t => (
-                <span key={t} style={{ color: 'rgba(96,165,250,0.4)', fontSize: 10 }}>#{t}</span>
+                <span key={t} style={{ color: '#4a6b5e', fontSize: 10 }}>#{t}</span>
               ))}
             </div>
           )}
@@ -449,7 +449,7 @@ export function TerminalShell(props: TerminalShellProps) {
           </div>
         )}
         <div className="ts-glass ts-cmd-bar">
-          <CmdIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(148,163,184,0.25)' }} />
+          <CmdIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(74,107,94,0.50)' }} />
           <input
             ref={cmdRef}
             value={cmdQuery}
@@ -459,7 +459,7 @@ export function TerminalShell(props: TerminalShellProps) {
             onBlur={() => setTimeout(() => setCmdOpen(false), 140)}
             onKeyDown={handleCmdKey}
           />
-          <span style={{ fontSize: 10, color: 'rgba(148,163,184,0.2)', flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>⌘K</span>
+          <span style={{ fontSize: 10, color: 'rgba(74,107,94,0.40)', flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>⌘K</span>
         </div>
       </div>
     </div>

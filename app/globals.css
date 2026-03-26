@@ -191,60 +191,61 @@ body {
 
 /* ═══════════════════════════════════════════════════════════════════════
    TERMINAL MODE — Glassmorphism IDE
-   Deep navy + electric blue palette. All glass panels, no flat surfaces.
+   Forest-at-night palette. Every color grown from chlorophyll.
    ═══════════════════════════════════════════════════════════════════════ */
 
 html.terminal {
-  --background:           222 47% 4%;       /* #030b1a — abyss */
-  --foreground:           214 32% 84%;      /* #c8d6e8 — cool silver */
-  --card:                 222 40% 7%;       /* #081326 — panel */
-  --card-foreground:      214 32% 84%;
-  --popover:              222 38% 8%;
-  --popover-foreground:   214 32% 84%;
-  --primary:              214 100% 60%;     /* #3b82f6 — electric blue */
-  --primary-foreground:   222 47% 4%;
-  --secondary:            222 32% 12%;      /* #111d30 */
-  --secondary-foreground: 214 28% 72%;
-  --muted:                222 32% 10%;
-  --muted-foreground:     220 18% 48%;      /* #697a94 */
-  --accent:               222 36% 15%;      /* #162338 — selection wash */
-  --accent-foreground:    214 32% 84%;
-  --destructive:          14  90% 60%;      /* #f26c3a */
-  --destructive-foreground: 222 47% 4%;
-  --border:               222 30% 18%;      /* #1d2d45 */
-  --input:                222 30% 18%;
-  --ring:                 214 100% 60%;
+  --background:           158 22% 6%;       /* #0c1210 — forest floor */
+  --foreground:           154 18% 64%;      /* #8fbcaa — desaturated mint */
+  --card:                 158 20% 8%;       /* #0f1a16 — panel surface */
+  --card-foreground:      154 18% 64%;
+  --popover:              158 18% 9%;       /* #111a15 */
+  --popover-foreground:   154 18% 64%;
+  --primary:              177 56% 56%;      /* #4ecdc4 — cyan-teal accent */
+  --primary-foreground:   158 22% 6%;
+  --secondary:            158 18% 11%;      /* #141e1a */
+  --secondary-foreground: 154 14% 52%;
+  --muted:                158 18% 10%;
+  --muted-foreground:     157 18% 35%;      /* #4a6b5e — dimmed metadata */
+  --accent:               160 24% 15%;      /* #1c2e28 — selection wash */
+  --accent-foreground:    154 18% 64%;
+  --destructive:          35  76% 60%;      /* #e8a04a — amber campfire only */
+  --destructive-foreground: 158 22% 6%;
+  --border:               158 20% 17%;      /* #1f3028 */
+  --input:                158 20% 17%;
+  --ring:                 177 56% 56%;
   --radius:               0.6rem;
-  --sidebar-background:   222 44% 5%;
-  --sidebar-foreground:   214 28% 72%;
-  --sidebar-primary:      214 100% 60%;
-  --sidebar-primary-foreground: 222 47% 4%;
-  --sidebar-accent:       222 32% 12%;
-  --sidebar-accent-foreground: 214 32% 84%;
-  --sidebar-border:       222 30% 15%;
-  --sidebar-ring:         214 100% 60%;
+  --sidebar-background:   160 26% 7%;       /* #0a1512 */
+  --sidebar-foreground:   154 16% 55%;
+  --sidebar-primary:      177 56% 56%;
+  --sidebar-primary-foreground: 158 22% 6%;
+  --sidebar-accent:       158 18% 11%;
+  --sidebar-accent-foreground: 154 18% 64%;
+  --sidebar-border:       158 20% 14%;
+  --sidebar-ring:         177 56% 56%;
   --font-sans:            var(--font-mono);
-  /* Syntax tokens */
-  --term-h1:    #7dd3fc;  /* sky-300 */
-  --term-h2:    #60a5fa;  /* blue-400 */
-  --term-h3:    #93c5fd;  /* blue-300 */
-  --term-bold:  #e2e8f0;
-  --term-link:  #3b82f6;
-  --term-code:  #86efac;  /* green — code blocks */
-  --term-accent:#3b82f6;
-  --term-dim:   #475569;
-  --term-warn:  #fb923c;
+  /* Syntax tokens — same chlorophyll family */
+  --term-h1:    #5af0c4;  /* bright teal-mint — h1 */
+  --term-h2:    #4ecdc4;  /* accent teal — h2 */
+  --term-h3:    #8fbcaa;  /* primary text — h3 */
+  --term-bold:  #c8e6d4;  /* bright mint — emphasis */
+  --term-link:  #4ecdc4;
+  --term-code:  #9fd6b8;  /* muted mint — code */
+  --term-accent:#4ecdc4;
+  --term-dim:   #4a6b5e;
+  --term-warn:  #e8a04a;  /* the only warmth — sparingly */
 }
 
-/* ── JetBrains Mono for all elements ─── */
+/* ── JetBrains Mono / Fira Code — no exceptions ─── */
 .terminal * {
   font-family: var(--font-mono), 'JetBrains Mono', 'Fira Code', ui-monospace, monospace !important;
+  letter-spacing: 0em;
 }
 
-/* ── Blue caret ─── */
-.terminal [contenteditable] { caret-color: #3b82f6; }
+/* ── Teal phosphor caret ─── */
+.terminal [contenteditable] { caret-color: #4ecdc4; }
 
-/* ── Subtle scanline texture ─── */
+/* ── Subtle scanline — green-tinted ─── */
 html.terminal::after {
   content: '';
   position: fixed;
@@ -253,8 +254,8 @@ html.terminal::after {
     0deg,
     transparent 0px,
     transparent 2px,
-    rgba(0, 5, 28, 0.035) 2px,
-    rgba(0, 5, 28, 0.035) 4px
+    rgba(0, 18, 10, 0.05) 2px,
+    rgba(0, 18, 10, 0.05) 4px
   );
   pointer-events: none;
   z-index: 9997;
@@ -271,30 +272,51 @@ html.terminal::before {
   z-index: 9996;
 }
 
-/* ── Tailwind accent overrides — indigo → blue ─── */
+/* ── Tailwind accent overrides — indigo → teal ─── */
 .terminal .bg-indigo-50, .terminal .dark\:bg-indigo-950\/40,
 .terminal .dark\:bg-indigo-950\/50, .terminal .dark\:bg-indigo-950\/60,
-.terminal .dark\:bg-indigo-950\/30 { background-color: rgba(59,130,246,0.07) !important; }
+.terminal .dark\:bg-indigo-950\/30 { background-color: rgba(78,205,196,0.07) !important; }
+.terminal .bg-indigo-100 { background-color: rgba(78,205,196,0.10) !important; }
 .terminal .bg-indigo-600, .terminal .dark\:bg-indigo-600,
 .terminal .hover\:bg-indigo-600:hover, .terminal .hover\:bg-indigo-700:hover {
-  background-color: #1d4ed8 !important;
+  background-color: #2a6b61 !important;
 }
+.terminal .bg-indigo-700 { background-color: #225750 !important; }
 .terminal .text-indigo-600, .terminal .dark\:text-indigo-400,
-.terminal .text-indigo-500, .terminal .hover\:text-indigo-500:hover { color: #60a5fa !important; }
-.terminal .text-indigo-400 { color: #93c5fd !important; }
+.terminal .text-indigo-500, .terminal .hover\:text-indigo-500:hover,
+.terminal .hover\:text-indigo-400:hover { color: #4ecdc4 !important; }
+.terminal .text-indigo-700, .terminal .dark\:text-indigo-300 { color: #8fbcaa !important; }
+.terminal .text-indigo-400 { color: #5af0c4 !important; }
+.terminal .text-indigo-200 { color: #c8e6d4 !important; }
 .terminal .border-indigo-500, .terminal .dark\:border-indigo-500 {
-  border-color: rgba(59,130,246,0.55) !important;
+  border-color: rgba(78,205,196,0.55) !important;
+  box-shadow: 0 0 0 1px rgba(78,205,196,0.10) !important;
 }
+.terminal .border-indigo-400, .terminal .dark\:border-indigo-700,
+.terminal .border-indigo-200 { border-color: rgba(78,205,196,0.28) !important; }
+.terminal .border-indigo-100 { border-color: rgba(78,205,196,0.14) !important; }
+.terminal .focus\:ring-indigo-200:focus { --tw-ring-color: rgba(78,205,196,0.22) !important; }
+.terminal .dark\:bg-zinc-950   { background-color: #0c1210 !important; }
+.terminal .dark\:bg-zinc-900   { background-color: #0f1a16 !important; }
+.terminal .dark\:bg-zinc-800,
+.terminal .dark\:bg-zinc-800\/50,
+.terminal .dark\:bg-zinc-800\/40 { background-color: rgba(20,34,28,0.93) !important; }
+.terminal .rounded-full { border-radius: 0.25rem !important; }
+.terminal .rounded-2xl  { border-radius: 0.375rem !important; }
+.terminal .rounded-xl   { border-radius: 0.25rem !important; }
+.terminal .rounded-lg   { border-radius: 0.2rem !important; }
+.terminal .rounded-md   { border-radius: 0.15rem !important; }
 
-/* ── Note-mention chip ─── */
+/* ── Note-mention chip — teal ─── */
 .terminal .note-mention-chip {
-  background: rgba(59,130,246,0.10);
-  color: #60a5fa;
-  border-color: rgba(59,130,246,0.30);
+  background: rgba(78,205,196,0.08);
+  color: #4ecdc4;
+  border-color: rgba(78,205,196,0.28);
+  box-shadow: none;
 }
 .terminal .note-mention-chip:hover {
-  background: rgba(59,130,246,0.18) !important;
-  border-color: rgba(59,130,246,0.5) !important;
+  background: rgba(78,205,196,0.15) !important;
+  border-color: rgba(78,205,196,0.48) !important;
 }
 
 /* ── note-mention-chip (global, all themes) ─── */
@@ -355,26 +377,26 @@ html.terminal::before {
   gap: 8px;
   padding: 10px;
   overflow: hidden;
-  background: #020c1e;
+  background: #0c1210;
 }
 
-/* ── Ambient glow orbs ─── */
+/* ── Ambient glow orbs — same chlorophyll family ─── */
 .ts-orb { position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; }
 .ts-orb-1 {
   width: 800px; height: 800px;
-  background: radial-gradient(circle, rgba(59,130,246,0.11) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(78,205,196,0.09) 0%, transparent 65%);
   top: -350px; left: -120px;
   animation: ts-drift 24s ease-in-out infinite alternate;
 }
 .ts-orb-2 {
   width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(129,140,248,0.09) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(90,240,196,0.06) 0%, transparent 65%);
   bottom: -200px; right: 60px;
   animation: ts-drift 30s ease-in-out infinite alternate-reverse;
 }
 .ts-orb-3 {
   width: 450px; height: 450px;
-  background: radial-gradient(circle, rgba(16,185,129,0.055) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(74,107,94,0.18) 0%, transparent 65%);
   top: 35%; left: 38%;
   animation: ts-drift 21s ease-in-out infinite alternate;
 }
@@ -383,18 +405,18 @@ html.terminal::before {
   to   { transform: translate(45px, 35px) scale(1.09); }
 }
 
-/* ── Glass base ─── */
+/* ── Glass base — frosted forest panel ─── */
 .ts-glass {
   position: relative;
   z-index: 1;
-  background: linear-gradient(150deg, rgba(10,19,44,0.84) 0%, rgba(5,11,28,0.90) 100%);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-  border: 1px solid rgba(59,130,246,0.13);
+  background: linear-gradient(150deg, rgba(9,16,12,0.87) 0%, rgba(4,8,6,0.92) 100%);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(78,205,196,0.12);
   box-shadow:
-    0 8px 40px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    inset 0 0 60px rgba(59,130,246,0.025);
+    0 8px 40px rgba(0,0,0,0.60),
+    inset 0 1px 0 rgba(143,188,170,0.04),
+    inset 0 0 60px rgba(78,205,196,0.018);
   border-radius: 14px;
   overflow: hidden;
 }
@@ -412,10 +434,10 @@ html.terminal::before {
 .ts-dock-logo {
   width: 32px; height: 32px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  background: linear-gradient(135deg, #1c2e28, #2a6b61);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 16px; flex-shrink: 0;
-  box-shadow: 0 0 24px rgba(59,130,246,0.40), 0 0 8px rgba(124,58,237,0.25);
+  box-shadow: 0 0 22px rgba(78,205,196,0.35), 0 0 8px rgba(90,240,196,0.18);
 }
 .ts-dock-icon {
   width: 36px; height: 36px;
@@ -423,33 +445,33 @@ html.terminal::before {
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s, color 0.15s;
-  color: rgba(148,163,184,0.42);
+  color: rgba(74,107,94,0.70);
   position: relative;
   border: 1px solid transparent;
 }
 .ts-dock-icon:hover {
-  background: rgba(59,130,246,0.10);
-  color: rgba(148,163,184,0.85);
-  border-color: rgba(59,130,246,0.12);
+  background: rgba(78,205,196,0.08);
+  color: #8fbcaa;
+  border-color: rgba(78,205,196,0.10);
 }
 .ts-dock-icon.ts-active {
-  background: rgba(59,130,246,0.16);
-  color: #60a5fa;
-  border-color: rgba(59,130,246,0.22);
-  box-shadow: 0 0 14px rgba(59,130,246,0.18);
+  background: rgba(78,205,196,0.13);
+  color: #4ecdc4;
+  border-color: rgba(78,205,196,0.20);
+  box-shadow: 0 0 12px rgba(78,205,196,0.15);
 }
 .ts-dock-icon .ts-badge {
   position: absolute; top: 4px; right: 4px;
   min-width: 13px; height: 13px;
   border-radius: 6px;
-  background: #3b82f6; color: white;
+  background: #4ecdc4; color: #0c1210;
   font-size: 8px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   padding: 0 2px; line-height: 1;
 }
 .ts-dock-sep {
   width: 22px; height: 1px;
-  background: rgba(59,130,246,0.12);
+  background: rgba(78,205,196,0.10);
   margin: 8px 0; flex-shrink: 0;
 }
 
@@ -466,13 +488,13 @@ html.terminal::before {
 .ts-explorer-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px 8px;
-  border-bottom: 1px solid rgba(59,130,246,0.08);
+  border-bottom: 1px solid rgba(78,205,196,0.07);
   flex-shrink: 0;
 }
 .ts-explorer-label {
   font-size: 9px; font-weight: 700;
   letter-spacing: 0.14em; text-transform: uppercase;
-  color: rgba(148,163,184,0.40);
+  color: rgba(74,107,94,0.65);
   font-family: var(--font-mono), monospace;
 }
 .ts-explorer > *:last-child { flex: 1; overflow: hidden; }
@@ -491,7 +513,7 @@ html.terminal::before {
 .ts-tabbar {
   display: flex; align-items: flex-end;
   gap: 2px; padding: 8px 12px 0;
-  border-bottom: 1px solid rgba(59,130,246,0.08);
+  border-bottom: 1px solid rgba(78,205,196,0.07);
   flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
 }
 .ts-tabbar::-webkit-scrollbar { display: none; }
@@ -499,16 +521,16 @@ html.terminal::before {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 11px; min-width: 0; max-width: 150px;
   border-radius: 7px 7px 0 0;
-  font-size: 11px; color: rgba(148,163,184,0.4);
+  font-size: 11px; color: rgba(74,107,94,0.65);
   cursor: pointer; transition: all 0.12s ease; white-space: nowrap;
   border: 1px solid transparent; border-bottom: none;
   font-family: var(--font-mono), monospace;
 }
-.ts-tab:hover { color: rgba(226,232,240,0.65); background: rgba(59,130,246,0.06); }
+.ts-tab:hover { color: #8fbcaa; background: rgba(78,205,196,0.05); }
 .ts-tab.ts-tab-active {
-  color: rgba(226,232,240,0.92);
-  background: rgba(59,130,246,0.10);
-  border-color: rgba(59,130,246,0.16); border-bottom-color: transparent;
+  color: #8fbcaa;
+  background: rgba(78,205,196,0.08);
+  border-color: rgba(78,205,196,0.14); border-bottom-color: transparent;
 }
 .ts-tab-name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .ts-tab-x { opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
@@ -540,21 +562,21 @@ html.terminal::before {
 .ts-editor-content:has([contenteditable]:focus) button {
   opacity: 1 !important; filter: none !important;
 }
-/* Blue cursor glow */
-.ts-editor-content [contenteditable]:focus { caret-color: #3b82f6; }
-.ts-editor-content textarea:focus         { caret-color: #3b82f6; outline: none; }
+/* Teal phosphor caret */
+.ts-editor-content [contenteditable]:focus { caret-color: #4ecdc4; }
+.ts-editor-content textarea:focus         { caret-color: #4ecdc4; outline: none; }
 
 /* Status bar */
 .ts-statusbar {
   display: flex; align-items: center; height: 22px;
-  border-top: 1px solid rgba(59,130,246,0.07);
+  border-top: 1px solid rgba(78,205,196,0.06);
   flex-shrink: 0; overflow: hidden;
 }
 .ts-sb-item {
   display: flex; align-items: center; gap: 4px;
   padding: 0 10px; height: 100%; flex-shrink: 0;
-  border-right: 1px solid rgba(59,130,246,0.07);
-  font-size: 10px; color: rgba(71,85,105,0.75);
+  border-right: 1px solid rgba(78,205,196,0.06);
+  font-size: 10px; color: rgba(74,107,94,0.65);
   font-family: var(--font-mono), monospace;
 }
 .ts-sb-spacer { flex: 1; }
@@ -564,29 +586,29 @@ html.terminal::before {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   height: 100%; gap: 14px;
-  color: rgba(148,163,184,0.25);
+  color: rgba(74,107,94,0.55);
   font-family: var(--font-mono), monospace;
 }
 .ts-empty-icon {
   width: 52px; height: 52px; border-radius: 14px;
-  background: rgba(59,130,246,0.05);
-  border: 1px solid rgba(59,130,246,0.10);
+  background: rgba(78,205,196,0.04);
+  border: 1px solid rgba(78,205,196,0.09);
   display: flex; align-items: center; justify-content: center;
 }
 .ts-empty-title { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
-.ts-empty-sub { font-size: 10px; color: rgba(148,163,184,0.18); text-align: center; line-height: 1.6; }
+.ts-empty-sub { font-size: 10px; color: rgba(74,107,94,0.35); text-align: center; line-height: 1.6; }
 .ts-new-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 16px; border-radius: 8px;
-  background: rgba(59,130,246,0.12);
-  border: 1px solid rgba(59,130,246,0.22);
-  color: #60a5fa;
+  background: rgba(78,205,196,0.08);
+  border: 1px solid rgba(78,205,196,0.18);
+  color: #4ecdc4;
   font-family: var(--font-mono), monospace; font-size: 11px;
   cursor: pointer; transition: all 0.14s ease;
 }
 .ts-new-btn:hover {
-  background: rgba(59,130,246,0.22);
-  box-shadow: 0 0 18px rgba(59,130,246,0.20);
+  background: rgba(78,205,196,0.14);
+  box-shadow: 0 0 16px rgba(78,205,196,0.16);
 }
 
 /* ── Graph Panel ─── */
@@ -605,30 +627,30 @@ html.terminal::before {
 }
 .ts-cmd-bar input {
   flex: 1; background: transparent; border: none; outline: none;
-  color: rgba(226,232,240,0.68);
+  color: rgba(143,188,170,0.65);
   font-family: var(--font-mono), monospace; font-size: 12px;
-  caret-color: #3b82f6;
+  caret-color: #4ecdc4;
 }
-.ts-cmd-bar input::placeholder { color: rgba(148,163,184,0.25); }
-.ts-cmd-bar input:focus { color: rgba(226,232,240,0.92); }
+.ts-cmd-bar input::placeholder { color: rgba(74,107,94,0.45); }
+.ts-cmd-bar input:focus { color: #8fbcaa; }
 .ts-cmd-results {
   position: absolute; bottom: 100%; left: 0; right: 0;
   margin-bottom: 6px; max-height: 260px; overflow-y: auto;
   border-radius: 12px;
-  background: linear-gradient(145deg, rgba(8,15,38,0.97) 0%, rgba(4,9,24,0.99) 100%);
+  background: linear-gradient(145deg, rgba(7,13,10,0.97) 0%, rgba(4,8,6,0.99) 100%);
   backdrop-filter: blur(28px);
-  border: 1px solid rgba(59,130,246,0.16);
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.55);
+  border: 1px solid rgba(78,205,196,0.14);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.60);
   padding: 6px;
 }
 .ts-cmd-results::-webkit-scrollbar { width: 3px; }
-.ts-cmd-results::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.2); border-radius: 2px; }
+.ts-cmd-results::-webkit-scrollbar-thumb { background: rgba(78,205,196,0.18); border-radius: 2px; }
 .ts-cmd-row {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 10px; border-radius: 7px; cursor: pointer;
   transition: background 0.10s ease;
   font-family: var(--font-mono), monospace;
 }
-.ts-cmd-row:hover, .ts-cmd-row.ts-cmd-sel { background: rgba(59,130,246,0.11); }
-.ts-cmd-title { font-size: 12px; color: rgba(226,232,240,0.82); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ts-cmd-tag { font-size: 10px; color: rgba(96,165,250,0.5); }
+.ts-cmd-row:hover, .ts-cmd-row.ts-cmd-sel { background: rgba(78,205,196,0.08); }
+.ts-cmd-title { font-size: 12px; color: #8fbcaa; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-cmd-tag { font-size: 10px; color: #4a6b5e; }
