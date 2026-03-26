@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Note, Folder } from "@/lib/types"
 import { NoteIcon } from "@/components/note-icon"
+import { useTheme } from "next-themes"
 
 interface NoteListPanelProps {
     notes: Note[]
@@ -24,8 +25,125 @@ interface NoteListPanelProps {
     onOpenInSplit?: (noteId: string) => void
 }
 
+// ── Terminal ghost preview helpers ──────────────────────────────────────────
+
+function stripHtmlForPreview(html: string): string {
+    return html
+        .replace(/<[^>]*>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+        .trim()
+}
+
+function getBlockMarkdown(note: Note): Array<{ text: string; type: string }> {
+    return note.blocks.slice(0, 10).map(b => {
+        const text = stripHtmlForPreview(b.content)
+        if (!text) return null
+        switch (b.type) {
+            case 'h1': return { text: `# ${text}`, type: 'h1' }
+            case 'h2': return { text: `## ${text}`, type: 'h2' }
+            case 'h3': return { text: `### ${text}`, type: 'h3' }
+            case 'bullet': return { text: `• ${text}`, type: 'bullet' }
+            case 'numbered': return { text: `1. ${text}`, type: 'numbered' }
+            case 'todo': return { text: `☐ ${text}`, type: 'todo' }
+            case 'quote': return { text: `  > ${text}`, type: 'quote' }
+            case 'code': return { text: `  \`${text}\``, type: 'code' }
+            default: return { text, type: 'p' }
+        }
+    }).filter((x): x is { text: string; type: string } => x !== null)
+}
+
+function termLineColor(type: string): string {
+    if (type === 'h1') return '#4ade80'
+    if (type === 'h2') return '#86efac'
+    if (type === 'h3') return '#a7f3d0'
+    if (type === 'quote') return '#6b7280'
+    if (type === 'code') return '#e879f9'
+    return '#8b9ab0'
+}
+
+function TerminalGhostPreview({ note, anchor, formatDate }: {
+    note: Note
+    anchor: { top: number; left: number }
+    formatDate: (ts: number) => string
+}) {
+    const lines = getBlockMarkdown(note)
+    const wordCount = note.blocks.map(b => b.content.replace(/<[^>]*>/g, ' ')).join(' ').split(/\s+/).filter(Boolean).length
+    const filename = (note.title || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md'
+
+    const style: React.CSSProperties = {
+        position: 'fixed',
+        top: Math.min(anchor.top, window.innerHeight - 260),
+        left: anchor.left,
+        zIndex: 9998,
+        width: 288,
+        background: '#0a0e1c',
+        border: '1px solid rgba(34,211,238,0.18)',
+        borderRadius: 3,
+        boxShadow: '0 0 0 1px rgba(34,211,238,0.06), 0 16px 48px rgba(0,0,0,0.7)',
+        fontFamily: 'var(--font-mono), ui-monospace, monospace',
+        fontSize: 11,
+        lineHeight: '1.55',
+        overflow: 'hidden',
+    }
+
+    return (
+        <div style={style} className="term-ghost-preview">
+            {/* $ cat header */}
+            <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(34,211,238,0.1)', background: '#070a14', color: '#374151' }}>
+                <span style={{ color: '#22d3ee' }}>$ </span>
+                <span style={{ color: '#86efac' }}>cat</span>
+                <span style={{ color: '#6b7280' }}> "{filename}"</span>
+            </div>
+
+            {/* Line-numbered content */}
+            <div style={{ padding: '6px 0', minHeight: 32 }}>
+                {lines.length === 0 ? (
+                    <div style={{ display: 'flex', padding: '2px 0' }}>
+                        <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#2a3449', flexShrink: 0, userSelect: 'none' }}>1</span>
+                        <span style={{ color: '#2a3449', fontStyle: 'italic' }}>(empty file)</span>
+                    </div>
+                ) : (
+                    lines.slice(0, 7).map((line, i) => (
+                        <div key={i} style={{ display: 'flex', padding: '1px 0' }}>
+                            <span style={{ width: 30, textAlign: 'right', paddingRight: 10, color: '#2a3449', flexShrink: 0, userSelect: 'none' }}>{i + 1}</span>
+                            <span style={{
+                                color: termLineColor(line.type),
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: 230,
+                            }}>{line.text}</span>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+                padding: '5px 12px',
+                borderTop: '1px solid rgba(34,211,238,0.08)',
+                background: '#070a14',
+                display: 'flex',
+                justifyContent: 'space-between',
+                color: '#2e3c50',
+                fontSize: 10,
+            }}>
+                <span>{wordCount} <span style={{ color: '#22d3ee', opacity: 0.5 }}>words</span></span>
+                <span>{formatDate(note.updatedAt)}</span>
+            </div>
+        </div>
+    )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote, isTrash, onRestoreNote, onPermanentDeleteNote, onOpenInSplit }: NoteListPanelProps) {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+    const { resolvedTheme } = useTheme()
+    const isTerminal = resolvedTheme === 'terminal'
+    const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null)
+    const [previewAnchor, setPreviewAnchor] = useState<{ top: number; left: number } | null>(null)
 
     const label = isTrash
         ? 'Trash'
@@ -115,6 +233,16 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                                 <button key={note.id}
                                     onClick={() => onSelect(note.id)}
                                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
+                                    onMouseEnter={e => {
+                                        if (!isTerminal) return
+                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                        setHoveredNoteId(note.id)
+                                        setPreviewAnchor({ top: rect.top, left: rect.right + 8 })
+                                    }}
+                                    onMouseLeave={() => {
+                                        setHoveredNoteId(null)
+                                        setPreviewAnchor(null)
+                                    }}
                                     className={cn(
                                         "w-full text-left p-3.5 rounded-xl transition-all cursor-pointer",
                                         isActive
@@ -161,6 +289,15 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                     </div>
                 )}
             </ScrollArea>
+
+            {/* Terminal ghost preview */}
+            {isTerminal && hoveredNoteId && previewAnchor && (() => {
+                const note = notes.find(n => n.id === hoveredNoteId)
+                return note ? createPortal(
+                    <TerminalGhostPreview note={note} anchor={previewAnchor} formatDate={formatDate} />,
+                    document.body
+                ) : null
+            })()}
 
             {/* Context menu */}
             {ctxMenu && createPortal(

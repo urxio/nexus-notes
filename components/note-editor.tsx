@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useMemo } from "react"
+import { useTheme } from "next-themes"
 import { Plus, Search, Trash2, X, ChevronRight, BookOpen, PanelLeftOpen, Hash } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
@@ -36,6 +37,17 @@ interface NoteEditorProps {
 
 export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreatePerson, onNavigateTo, navStack = [], onBreadcrumbNav, objectTypes, deletedObjectTypes, onCreateObjectType, sidebarOpen, onToggleSidebar, notes = [] }: NoteEditorProps) {
     const { toast } = useToast()
+    const { resolvedTheme } = useTheme()
+    const isTerminal = resolvedTheme === 'terminal'
+
+    const wordCount = useMemo(() => {
+        const text = note.blocks
+            .map(b => b.content.replace(/<[^>]*>/g, ' '))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        return text ? text.split(' ').filter(Boolean).length : 0
+    }, [note.blocks])
 
     const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null)
     const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set())
@@ -1153,6 +1165,37 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                     </div>
                 </div>
             </ScrollArea>
+
+            {/* ── Terminal IDE Status Bar ─────────────────────────────────────── */}
+            {isTerminal && (() => {
+                const focusedBlockIdx = note.blocks.findIndex(b => b.id === focusedBlockId)
+                const filename = (note.title || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md'
+                const isInsert = !!focusedBlockId
+                return (
+                    <div className="terminal-status-bar flex items-stretch h-[22px] text-[10px] font-mono flex-shrink-0 overflow-hidden select-none">
+                        {/* Mode pill */}
+                        <div className={isInsert ? 'mode-insert' : 'mode-normal'}
+                            style={{ display: 'flex', alignItems: 'center', padding: '0 10px', fontWeight: 700, letterSpacing: '0.14em', fontSize: 9, flexShrink: 0 }}>
+                            {isInsert ? 'INSERT' : 'NORMAL'}
+                        </div>
+                        {/* Separator */}
+                        <div style={{ width: 1, background: 'rgba(34,211,238,0.12)', flexShrink: 0 }} />
+                        {/* File name */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', color: '#4b5769', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                            <span style={{ color: '#22d3ee', opacity: 0.5, flexShrink: 0 }}>✦</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filename}</span>
+                        </div>
+                        {/* Right stats */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', color: '#374151', flexShrink: 0, fontSize: 9 }}>
+                            <span>{wordCount}<span style={{ color: '#22d3ee', opacity: 0.4, marginLeft: 2 }}>w</span></span>
+                            <span style={{ color: '#1a2236' }}>│</span>
+                            <span>Ln <span style={{ color: '#6b7280' }}>{Math.max(1, focusedBlockIdx + 1)}</span></span>
+                            <span style={{ color: '#1a2236' }}>│</span>
+                            <span style={{ color: '#22d3ee', opacity: 0.35, letterSpacing: '0.1em' }}>:w  :q</span>
+                        </div>
+                    </div>
+                )
+            })()}
         </div>
     )
 }

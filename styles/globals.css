@@ -91,113 +91,197 @@
   }
 }
 
-/* ── Terminal (noir) theme ──────────────────────────────────────────────────── */
-.terminal {
-  /* Warm near-black surfaces */
-  --background: 0 0% 6.7%;           /* #111111 */
-  --foreground: 0 0% 87%;            /* #dedede */
-  --card: 0 0% 9.4%;                 /* #181818 */
-  --card-foreground: 0 0% 87%;
-  --popover: 0 0% 11%;               /* #1c1c1c */
-  --popover-foreground: 0 0% 87%;
-  /* Red accent */
-  --primary: 0 65% 57%;              /* #d84f4f */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 12.5%;          /* #202020 */
-  --secondary-foreground: 0 0% 80%;
-  --muted: 0 0% 12.5%;
-  --muted-foreground: 0 0% 47%;      /* #777 */
-  --accent: 0 0% 14%;                /* #242424 */
-  --accent-foreground: 0 0% 87%;
-  --destructive: 0 65% 57%;
+/* ── Terminal (IDE-noir) theme ─────────────────────────────────────────────── */
+/*
+ * Obsidian-navy (#0a0d16) with cyan phosphor accent (#22d3ee).
+ * Inspired by Zed dark / Helix / Neovim night — hacker-luxury.
+ * NOT #1e1e1e VSCode gray. Cold blue-black with personality.
+ */
+
+html.terminal {
+  /* Cold obsidian-navy surfaces */
+  --background: 226 36% 6%;         /* #090c16 */
+  --foreground: 213 20% 70%;        /* #a5b3c0 */
+  --card: 226 30% 9%;               /* #0f1320 */
+  --card-foreground: 213 20% 70%;
+  --popover: 226 28% 10%;           /* #131823 */
+  --popover-foreground: 213 20% 70%;
+  --primary: 189 84% 53%;           /* #22d3ee — cyan phosphor */
+  --primary-foreground: 226 36% 6%;
+  --secondary: 226 26% 12%;         /* #15192a */
+  --secondary-foreground: 213 16% 58%;
+  --muted: 226 26% 11%;
+  --muted-foreground: 213 12% 36%;  /* #4b5769 */
+  --accent: 226 24% 15%;            /* #1c2336 */
+  --accent-foreground: 213 20% 70%;
+  --destructive: 0 72% 58%;
   --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 16%;                /* #292929 */
-  --input: 0 0% 16%;
-  --ring: 0 65% 57%;
-  --radius: 0.375rem;                /* tighter corners */
+  --border: 226 24% 18%;            /* #212d42 */
+  --input: 226 24% 18%;
+  --ring: 189 84% 53%;
+  --radius: 0.2rem;                 /* sharp — IDE precision */
   /* Sidebar */
-  --sidebar-background: 0 0% 6.7%;
-  --sidebar-foreground: 0 0% 80%;
-  --sidebar-primary: 0 65% 57%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 12.5%;
-  --sidebar-accent-foreground: 0 0% 87%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-ring: 0 65% 57%;
-  /* Switch to mono font */
+  --sidebar-background: 228 40% 7%; /* #09101a */
+  --sidebar-foreground: 213 18% 55%;
+  --sidebar-primary: 189 84% 53%;
+  --sidebar-primary-foreground: 226 36% 6%;
+  --sidebar-accent: 226 26% 12%;
+  --sidebar-accent-foreground: 213 20% 70%;
+  --sidebar-border: 226 24% 15%;
+  --sidebar-ring: 189 84% 53%;
   --font-sans: var(--font-mono);
+  /* Syntax token palette — used by ghost preview + status bar */
+  --term-h1: #4ade80;
+  --term-h2: #86efac;
+  --term-h3: #a7f3d0;
+  --term-bold: #fbbf24;
+  --term-link: #38bdf8;
+  --term-code: #e879f9;
+  --term-accent: #22d3ee;
+  --term-dim: #374151;
+  --term-warn: #fb923c;
 }
 
-/* ── Font: every element uses JetBrains Mono ────────────────────── */
+/* ── Monospace everywhere ────────────────────────────────────────── */
 .terminal * {
   font-family: var(--font-mono), ui-monospace, 'Courier New', monospace !important;
   letter-spacing: -0.01em;
 }
 
-/* ── Indigo accent → red ────────────────────────────────────────── */
-/* backgrounds */
-.terminal .bg-indigo-50,  .terminal .dark\:bg-indigo-950\/40,
-.terminal .dark\:bg-indigo-950\/50, .terminal .dark\:bg-indigo-950\/60 {
-  background-color: rgba(185,28,28,0.12) !important;
+/* Cyan blink cursor — phosphor glow */
+.terminal [contenteditable] {
+  caret-color: #22d3ee;
 }
-.terminal .bg-indigo-100,
+
+/* ── Scanline texture overlay ────────────────────────────────────── */
+html.terminal::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 8, 30, 0.04) 2px,
+    rgba(0, 8, 30, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9997;
+}
+
+/* ── Indigo accent → cyan ────────────────────────────────────────── */
+/* Soft tinted backgrounds */
+.terminal .bg-indigo-50,
+.terminal .dark\:bg-indigo-950\/40,
+.terminal .dark\:bg-indigo-950\/50,
+.terminal .dark\:bg-indigo-950\/60,
 .terminal .dark\:bg-indigo-950\/30 {
-  background-color: rgba(185,28,28,0.10) !important;
+  background-color: rgba(34,211,238,0.07) !important;
 }
+.terminal .bg-indigo-100 {
+  background-color: rgba(34,211,238,0.10) !important;
+}
+/* Solid accent buttons */
 .terminal .bg-indigo-600,
 .terminal .dark\:bg-indigo-600,
 .terminal .hover\:bg-indigo-600:hover,
 .terminal .hover\:bg-indigo-700:hover {
-  background-color: rgb(185,28,28) !important;
+  background-color: #0891b2 !important;  /* cyan-600 */
 }
-.terminal .bg-indigo-700 { background-color: rgb(153,27,27) !important; }
-
-/* text */
-.terminal .text-indigo-700, .terminal .dark\:text-indigo-300 { color: #f87171 !important; }
-.terminal .text-indigo-600, .terminal .dark\:text-indigo-400,
-.terminal .text-indigo-500, .terminal .hover\:text-indigo-500:hover,
-.terminal .hover\:text-indigo-400:hover { color: #ef4444 !important; }
-.terminal .text-indigo-400 { color: #f87171 !important; }
-.terminal .text-indigo-200 { color: #fca5a5 !important; }
-
-/* borders / rings */
-.terminal .border-indigo-500,  .terminal .dark\:border-indigo-500,
-.terminal .border-indigo-400,  .terminal .dark\:border-indigo-700,
-.terminal .border-indigo-200,  .terminal .dark\:border-indigo-900\/50,
-.terminal .ring-indigo-200,    .terminal .dark\:ring-indigo-900\/50 {
-  border-color: rgba(239,68,68,0.4) !important;
+.terminal .bg-indigo-700 {
+  background-color: #0e7490 !important;  /* cyan-700 */
 }
-.terminal .border-indigo-100   { border-color: rgba(239,68,68,0.2) !important; }
 
-/* ── Surface / zinc overrides ───────────────────────────────────── */
-.terminal .dark\:bg-zinc-950   { background-color: #0e0e0e !important; }
-.terminal .dark\:bg-zinc-900   { background-color: #161616 !important; }
+/* Text */
+.terminal .text-indigo-700,
+.terminal .dark\:text-indigo-300 { color: #67e8f9 !important; }
+.terminal .text-indigo-600,
+.terminal .dark\:text-indigo-400,
+.terminal .text-indigo-500,
+.terminal .hover\:text-indigo-500:hover,
+.terminal .hover\:text-indigo-400:hover { color: #22d3ee !important; }
+.terminal .text-indigo-400 { color: #38bdf8 !important; }
+.terminal .text-indigo-200 { color: #a5f3fc !important; }
+
+/* Borders / rings — cyan with glow */
+.terminal .border-indigo-500,
+.terminal .dark\:border-indigo-500 {
+  border-color: rgba(34,211,238,0.6) !important;
+  box-shadow: 0 0 0 1px rgba(34,211,238,0.12), 0 0 12px rgba(34,211,238,0.06) !important;
+}
+.terminal .border-indigo-400,
+.terminal .dark\:border-indigo-700,
+.terminal .border-indigo-200,
+.terminal .dark\:border-indigo-900\/50,
+.terminal .ring-indigo-200,
+.terminal .dark\:ring-indigo-900\/50 {
+  border-color: rgba(34,211,238,0.35) !important;
+}
+.terminal .border-indigo-100 { border-color: rgba(34,211,238,0.18) !important; }
+
+/* Focus rings → cyan */
+.terminal .focus\:ring-indigo-200:focus,
+.terminal .dark\:focus\:ring-indigo-900\/50:focus {
+  --tw-ring-color: rgba(34,211,238,0.25) !important;
+}
+.terminal .focus\:border-indigo-300:focus {
+  border-color: rgba(34,211,238,0.4) !important;
+}
+
+/* ── Surface / zinc overrides ────────────────────────────────────── */
+.terminal .dark\:bg-zinc-950   { background-color: #090c16 !important; }
+.terminal .dark\:bg-zinc-900   { background-color: #0f1320 !important; }
 .terminal .dark\:bg-zinc-800,
 .terminal .dark\:bg-zinc-800\/50,
 .terminal .dark\:bg-zinc-800\/40,
-.terminal .dark\:bg-zinc-800\/70 { background-color: rgba(28,28,28,0.9) !important; }
-.terminal .dark\:bg-zinc-700\/60 { background-color: rgba(40,40,40,0.6) !important; }
+.terminal .dark\:bg-zinc-800\/70 { background-color: rgba(18,24,42,0.92) !important; }
+.terminal .dark\:bg-zinc-700\/60 { background-color: rgba(25,33,54,0.6) !important; }
 
-/* ── Border radius: tighter throughout ─────────────────────────── */
-.terminal .rounded-xl  { border-radius: 0.375rem !important; }
-.terminal .rounded-2xl { border-radius: 0.5rem !important;   }
-.terminal .rounded-full{ border-radius: 0.375rem !important; }
+/* ── Border radius: IDE-sharp ────────────────────────────────────── */
+.terminal .rounded-full { border-radius: 0.25rem !important; }
+.terminal .rounded-2xl  { border-radius: 0.375rem !important; }
+.terminal .rounded-xl   { border-radius: 0.25rem !important; }
+.terminal .rounded-lg   { border-radius: 0.2rem !important; }
+.terminal .rounded-md   { border-radius: 0.15rem !important; }
 
-/* App shell: flat black, no gradient noise */
+/* ── App shell: flat obsidian, no gradient noise ─────────────────── */
 .terminal .app-shell {
-  background: #0e0e0e;
+  background: #090c16 !important;
 }
 
-/* Note-mention chip: red tinted */
+/* ── Note-mention chip — cyan phosphor ───────────────────────────── */
 .terminal .note-mention-chip {
-  background: rgba(216, 79, 79, 0.12);
-  color: #e07070;
-  border-color: rgba(216, 79, 79, 0.38);
+  background: rgba(34, 211, 238, 0.08);
+  color: #67e8f9;
+  border-color: rgba(34, 211, 238, 0.32);
   box-shadow: none;
 }
 .terminal .note-mention-chip:hover {
-  background: rgba(216, 79, 79, 0.20) !important;
-  border-color: rgba(216, 79, 79, 0.55) !important;
+  background: rgba(34, 211, 238, 0.16) !important;
+  border-color: rgba(34, 211, 238, 0.52) !important;
+}
+
+/* ── Terminal ghost preview + status bar animations ──────────────── */
+@keyframes term-preview-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.term-ghost-preview {
+  animation: term-preview-in 0.14s ease-out forwards;
+}
+
+/* ── Status bar ──────────────────────────────────────────────────── */
+.terminal-status-bar {
+  background: #060912;
+  border-top: 1px solid #1a2236;
+}
+.terminal-status-bar .mode-insert {
+  background: #22d3ee;
+  color: #060912;
+}
+.terminal-status-bar .mode-normal {
+  background: #1c2336;
+  color: #22d3ee;
 }
 
 /* ── App shell gradient (light) + pure black (dark) ────────────────────────── */
