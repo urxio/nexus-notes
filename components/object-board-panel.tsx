@@ -196,7 +196,7 @@ export function ObjectBoardPanel({
     }
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-zinc-950">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-white dark:bg-zinc-950">
             {/* Header */}
             <div className="px-4 pt-5 pb-3 border-b border-[#f3f4f6] dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-3">
@@ -277,7 +277,7 @@ export function ObjectBoardPanel({
             </div>
 
             {/* Cards */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 w-full">
                 {objects.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-3">
                         <div className="w-12 h-12 rounded-2xl bg-[#f9fafb] dark:bg-zinc-800 flex items-center justify-center border border-[#e5e7eb] dark:border-zinc-700">

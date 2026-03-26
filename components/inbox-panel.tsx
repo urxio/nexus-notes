@@ -43,7 +43,7 @@ export function InboxPanel({ items, activeId, onSelectItem, onMarkAllRead, onCle
     const unread = items.filter(i => !i.read).length
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-zinc-950">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-white dark:bg-zinc-950">
             {/* Header */}
             <div className="px-4 pt-5 pb-3 border-b border-[#f3f4f6] dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-3">
@@ -78,7 +78,7 @@ export function InboxPanel({ items, activeId, onSelectItem, onMarkAllRead, onCle
             </div>
 
             {/* Items */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 w-full">
                 {items.length === 0 ? (
                     /* ── Empty state ── */
                     <div className="flex flex-col items-center justify-center py-16 gap-4 px-6 text-center">
@@ -134,7 +134,7 @@ export function InboxPanel({ items, activeId, onSelectItem, onMarkAllRead, onCle
 
                                     {/* Subject */}
                                     <p className={cn(
-                                        "text-[13px] leading-snug mb-1",
+                                        "text-[13px] leading-snug mb-1 break-words overflow-hidden",
                                         isActive || isUnread
                                             ? "font-bold text-[#111827] dark:text-zinc-100"
                                             : "font-semibold text-[#374151] dark:text-zinc-300"
