@@ -555,7 +555,12 @@ export default function NotesPage() {
   }
 
   async function handleSignOut() {
-    await supabase.current.auth.signOut()
+    if (user) {
+      await supabase.current.auth.signOut()
+    } else {
+      // Local-only mode — clear the bypass cookie
+      document.cookie = 'locus-local-mode=; path=/; max-age=0; SameSite=Lax'
+    }
     router.push('/auth')
     router.refresh()
   }
@@ -876,7 +881,7 @@ export default function NotesPage() {
                   setActiveTag(null)
                   setSelectedObjectTypeId(null)
                 }}
-                onSignOut={user ? handleSignOut : undefined}
+                onSignOut={handleSignOut}
                 onDeleteTag={deleteTag}
               />
             </div>

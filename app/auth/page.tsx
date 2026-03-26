@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { HardDrive } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase'
 
 type Mode = 'signin' | 'signup' | 'magic'
@@ -173,6 +174,30 @@ export default function AuthPage() {
                                     : 'Send Magic Link'}
                         </button>
                     </form>
+                </div>
+
+                {/* Local-only option */}
+                <div className="mt-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="flex-1 h-px bg-white/[0.07]" />
+                        <span className="text-zinc-600 text-xs">or</span>
+                        <div className="flex-1 h-px bg-white/[0.07]" />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            document.cookie = 'locus-local-mode=1; path=/; max-age=31536000; SameSite=Lax'
+                            router.push('/app')
+                        }}
+                        className="w-full py-2.5 rounded-xl border border-white/[0.08] hover:border-white/[0.16] text-zinc-500 hover:text-zinc-300 text-sm transition-all flex items-center justify-center gap-2"
+                        style={{ background: 'rgba(255,255,255,0.03)' }}
+                    >
+                        <HardDrive className="w-4 h-4" />
+                        Continue without account — local only
+                    </button>
+                    <p className="text-center text-zinc-700 text-[11px] mt-2 leading-relaxed">
+                        Your notes stay on this device. No account needed.
+                    </p>
                 </div>
 
                 {/* Footer links */}

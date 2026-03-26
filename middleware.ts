@@ -28,11 +28,15 @@ export async function middleware(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
-    // Redirect unauthenticated visitors trying to access the app
+    // Redirect unauthenticated visitors trying to access the app,
+    // unless they opted into local-only mode (cookie set on auth page)
     if (!user && pathname.startsWith('/app')) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/auth'
-        return NextResponse.redirect(url)
+        const localMode = request.cookies.get('locus-local-mode')?.value
+        if (localMode !== '1') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/auth'
+            return NextResponse.redirect(url)
+        }
     }
 
     // Redirect already-authenticated visitors away from the auth page
