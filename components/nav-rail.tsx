@@ -90,7 +90,8 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     }
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'person' | 'folder' | 'objectType'; id: string } | null>(null)
     const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes].filter(t => !deletedObjectTypes.includes(t.id))
-    const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
+    // Built-in types always shown; custom types always shown (user created them intentionally)
+    const visibleTypes = allTypes
 
     return (
         <div className="flex flex-col h-full"
@@ -170,7 +171,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                             )} />
                         </div>
                         <span className="flex-1 text-[13px]">All Notes</span>
-                        <span className="text-[10px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums">{notes.length}</span>
+                        <span className="text-[10px] font-mono text-[#9ca3af] dark:text-zinc-500 tabular-nums">{notes.length}</span>
                     </button>
 
                     {/* Folders */}
@@ -181,8 +182,8 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                 <span className="font-mono font-bold text-[9px] uppercase tracking-[0.2em] text-[#9ca3af] dark:text-zinc-500">Folders</span>
                             </div>
                             <button onClick={() => onCreateFolder()} title="New folder"
-                                className="text-[#d1d5db] hover:text-indigo-500 dark:text-zinc-700 dark:hover:text-indigo-400 transition-colors">
-                                <FolderPlus className="w-3 h-3" />
+                                className="text-[#9ca3af] hover:text-indigo-500 dark:text-zinc-500 dark:hover:text-indigo-400 transition-colors">
+                                <FolderPlus className="w-3.5 h-3.5" />
                             </button>
                         </div>
                         <div className="space-y-0.5">
@@ -223,16 +224,16 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                 <span className="truncate flex-1">{folder.name}</span>
                                             )}
                                             {count > 0 && !isEditing && (
-                                                <span className="text-[10px] font-mono text-[#d1d5db] dark:text-zinc-700 flex-shrink-0">{count}</span>
+                                                <span className="text-[10px] font-mono text-[#9ca3af] dark:text-zinc-500 flex-shrink-0">{count}</span>
                                             )}
                                         </button>
                                         <div className="flex opacity-0 group-hover/folder:opacity-100 transition-opacity flex-shrink-0 ml-0.5">
                                             <button onClick={() => { setEditingFolderId(folder.id); setEditingName(folder.name) }}
-                                                className="p-1 text-[#d1d5db] hover:text-[#6b7280] dark:text-zinc-700 dark:hover:text-zinc-400 transition-colors">
+                                                className="p-1 text-[#9ca3af] hover:text-[#6b7280] dark:text-zinc-500 dark:hover:text-zinc-400 transition-colors">
                                                 <Pencil className="w-2.5 h-2.5" />
                                             </button>
                                             <button onClick={() => onDeleteFolder(folder.id)}
-                                                className="p-1 text-[#d1d5db] hover:text-red-400 dark:text-zinc-700 dark:hover:text-red-400 transition-colors">
+                                                className="p-1 text-[#9ca3af] hover:text-red-400 dark:text-zinc-500 dark:hover:text-red-400 transition-colors">
                                                 <Trash2 className="w-2.5 h-2.5" />
                                             </button>
                                         </div>
@@ -241,7 +242,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                             })}
                             {folders.length === 0 && (
                                 <button onClick={() => onCreateFolder()}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] text-[#d1d5db] dark:text-zinc-700 hover:text-indigo-500 hover:bg-slate-50 transition-all">
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] text-[#9ca3af] dark:text-zinc-500 hover:text-indigo-500 hover:bg-slate-50 transition-all">
                                     <Plus className="w-3 h-3" />
                                     New folder
                                 </button>
@@ -259,7 +260,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                 </div>
                                 {onCreateObjectType && (
                                     <button onClick={() => { setCreatingObjectType(true); setNewObjectTypeName('') }} title="New object type"
-                                        className="text-[#d1d5db] hover:text-indigo-500 dark:text-zinc-700 dark:hover:text-indigo-400 transition-colors">
+                                        className="text-[#9ca3af] hover:text-indigo-500 dark:text-zinc-500 dark:hover:text-indigo-400 transition-colors">
                                         <Plus className="w-3 h-3" />
                                     </button>
                                 )}
@@ -287,7 +288,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                         <Plus className="w-3 h-3" />
                                     </button>
                                     <button type="button" onClick={() => { setCreatingObjectType(false); setNewObjectTypeName('') }}
-                                        className="p-1 text-[#d1d5db] hover:text-[#9ca3af] dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors flex-shrink-0">
+                                        className="p-1 text-[#9ca3af] hover:text-[#6b7280] dark:text-zinc-500 dark:hover:text-zinc-400 transition-colors flex-shrink-0">
                                         <X className="w-3 h-3" />
                                     </button>
                                 </form>
@@ -319,7 +320,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                         selectedObjectTypeId === objType.id ? "text-white" : "text-[#374151] dark:text-zinc-300"
                                                     )}>{objType.name}</span>
                                                     {!expandedTypes.has(objType.id) && typeObjects.length > 0 && (
-                                                        <span className={cn("font-mono text-[9px] tabular-nums", selectedObjectTypeId === objType.id ? "text-indigo-200" : "text-[#d1d5db] dark:text-zinc-600")}>{typeObjects.length}</span>
+                                                        <span className={cn("font-mono text-[10px] tabular-nums font-medium", selectedObjectTypeId === objType.id ? "text-indigo-200" : "text-[#6b7280] dark:text-zinc-400")}>{typeObjects.length}</span>
                                                     )}
                                                 </button>
                                                 {/* Chevron — toggles collapse only */}
@@ -329,7 +330,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                 >
                                                     <ChevronRight className={cn(
                                                         "w-3 h-3 transition-transform duration-150",
-                                                        selectedObjectTypeId === objType.id ? "text-indigo-200" : "text-[#d1d5db] dark:text-zinc-600",
+                                                        selectedObjectTypeId === objType.id ? "text-indigo-200" : "text-[#9ca3af] dark:text-zinc-400",
                                                         expandedTypes.has(objType.id) && "rotate-90"
                                                     )} />
                                                 </button>
@@ -357,13 +358,13 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                             <span className="truncate">{person.name}</span>
                                                         </button>
                                                         <button onClick={() => onDeletePerson(person.id)}
-                                                            className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 text-[#d1d5db] hover:text-red-400 dark:text-zinc-700 dark:hover:text-red-400 flex-shrink-0">
+                                                            className="opacity-0 group-hover/person:opacity-100 transition-opacity p-1 text-[#9ca3af] hover:text-red-400 dark:text-zinc-500 dark:hover:text-red-400 flex-shrink-0">
                                                             <X className="w-2.5 h-2.5" />
                                                         </button>
                                                     </div>
                                                 ))}
                                                 {typeObjects.length === 0 && creatingType !== objType.id && (
-                                                    <p className="px-3 text-[11px] text-[#d1d5db] dark:text-zinc-700 italic">No {objType.name.toLowerCase()}s yet</p>
+                                                    <p className="px-3 text-[11px] text-[#9ca3af] dark:text-zinc-500 italic">No {objType.name.toLowerCase()}s yet</p>
                                                 )}
                                                 {creatingType === objType.id ? (
                                                     <div className="flex items-center px-3 py-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-sm ring-1 ring-indigo-200 dark:ring-indigo-900/50 border border-indigo-100">
@@ -405,7 +406,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                     {allTags.length > 0 && (
                         <div className="pt-4">
                             <div className="flex items-center justify-between px-1 mb-2">
-                                <span className="font-mono font-bold text-[9px] uppercase tracking-[0.2em] text-[#9ca3af] dark:text-zinc-700">Tags</span>
+                                <span className="font-mono font-bold text-[9px] uppercase tracking-[0.2em] text-[#9ca3af] dark:text-zinc-500">Tags</span>
                                 {activeTag && (
                                     <button onClick={() => onTagFilter(null)} className="font-mono text-[9px] text-indigo-500 hover:underline">clear</button>
                                 )}
@@ -460,7 +461,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                     </div>
                     <span className="flex-1 text-[13px]">Trash</span>
                     {trashCount > 0 && (
-                        <span className="text-[10px] font-mono text-[#d1d5db] dark:text-zinc-700 tabular-nums">{trashCount}</span>
+                        <span className="text-[10px] font-mono text-[#9ca3af] dark:text-zinc-500 tabular-nums">{trashCount}</span>
                     )}
                 </button>
             </div>
