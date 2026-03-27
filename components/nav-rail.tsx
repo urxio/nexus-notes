@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { Folder, Person, ObjectType, Note } from "@/lib/types"
-import { BUILTIN_OBJECT_TYPES } from "@/lib/constants"
+import { BUILTIN_OBJECT_TYPES, FUTURISTIC_ICONS, NOTE_ICON_KEYS } from "@/lib/constants"
 import { NoteIcon } from "./note-icon"
 
 interface NavRailProps {
@@ -54,9 +54,10 @@ interface NavRailProps {
     onSignOut?: () => void
     onDeleteTag: (tag: string) => void
     onCreateObjectType?: (name: string, emoji: string) => void
+    onUpdateObjectType?: (id: string, updates: { name?: string; emoji?: string }) => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut, onDeleteTag, onCreateObjectType }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut, onDeleteTag, onCreateObjectType, onUpdateObjectType }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme !== 'light'
     const isTerminal = resolvedTheme === 'terminal'
@@ -66,6 +67,8 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const [creatingName, setCreatingName] = useState('')
     const [creatingObjectType, setCreatingObjectType] = useState(false)
     const [newObjectTypeName, setNewObjectTypeName] = useState('')
+    const [iconPickerTypeId, setIconPickerTypeId] = useState<string | null>(null)
+    const iconPickerRef = React.useRef<HTMLDivElement>(null)
     // Track explicitly EXPANDED types. Empty set = all collapsed = correct default for new users.
     const [expandedTypes, setExpandedTypes] = useState<Set<string>>(() => {
         if (typeof window === 'undefined') return new Set()
@@ -92,6 +95,16 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes].filter(t => !deletedObjectTypes.includes(t.id))
     // Built-in types always shown; custom types always shown (user created them intentionally)
     const visibleTypes = allTypes
+
+    // Close icon picker on outside click
+    useEffect(() => {
+        if (!iconPickerTypeId) return
+        function handler(e: MouseEvent) {
+            if (iconPickerRef.current && !iconPickerRef.current.contains(e.target as Node)) setIconPickerTypeId(null)
+        }
+        window.addEventListener('mousedown', handler)
+        return () => window.removeEventListener('mousedown', handler)
+    }, [iconPickerTypeId])
 
     return (
         <div className="flex flex-col h-full"
@@ -310,12 +323,49 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                                                 )}
                                                 onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, type: 'objectType', id: objType.id }) }}
                                             >
+                                                {/* Icon — click to change (custom types only) */}
+                                                {!objType.isBuiltin && onUpdateObjectType ? (
+                                                    <div className="relative flex-shrink-0">
+                                                        <button
+                                                            onClick={e => { e.stopPropagation(); setIconPickerTypeId(iconPickerTypeId === objType.id ? null : objType.id) }}
+                                                            title="Change icon"
+                                                            className={cn("w-5 h-5 rounded flex items-center justify-center transition-colors",
+                                                                selectedObjectTypeId === objType.id ? "hover:bg-indigo-700" : "hover:bg-slate-200 dark:hover:bg-zinc-700"
+                                                            )}
+                                                        >
+                                                            <NoteIcon iconName={objType.emoji} className={cn("w-3.5 h-3.5", selectedObjectTypeId === objType.id ? "text-white" : "text-[#6b7280]")} />
+                                                        </button>
+                                                        {iconPickerTypeId === objType.id && (
+                                                            <div ref={iconPickerRef}
+                                                                className="absolute left-0 top-full mt-1 z-50 w-[180px] max-h-[200px] overflow-y-auto rounded-xl border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-1.5 grid grid-cols-6 gap-0.5">
+                                                                {NOTE_ICON_KEYS.map(key => {
+                                                                    const Icon = FUTURISTIC_ICONS[key]
+                                                                    return (
+                                                                        <button key={key} title={key}
+                                                                            onClick={e => {
+                                                                                e.stopPropagation()
+                                                                                onUpdateObjectType(objType.id, { emoji: key })
+                                                                                setIconPickerTypeId(null)
+                                                                            }}
+                                                                            className={cn(
+                                                                                "w-6 h-6 rounded-lg flex items-center justify-center transition-colors",
+                                                                                objType.emoji === key ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400" : "hover:bg-slate-100 dark:hover:bg-zinc-800 text-[#6b7280] dark:text-zinc-400"
+                                                                            )}>
+                                                                            <Icon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <NoteIcon iconName={objType.emoji} className={cn("w-3.5 h-3.5 flex-shrink-0", selectedObjectTypeId === objType.id ? "text-white" : "text-[#6b7280]")} />
+                                                )}
                                                 {/* Clickable label area — opens board */}
                                                 <button
                                                     className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
                                                     onClick={() => onSelectObjectType?.(objType.id)}
                                                 >
-                                                    <NoteIcon iconName={objType.emoji} className={cn("w-3.5 h-3.5 flex-shrink-0", selectedObjectTypeId === objType.id ? "text-white" : "text-[#6b7280]")} />
                                                     <span className={cn("font-mono font-semibold text-[9px] uppercase tracking-[0.12em] flex-1 truncate",
                                                         selectedObjectTypeId === objType.id ? "text-white" : "text-[#374151] dark:text-zinc-300"
                                                     )}>{objType.name}</span>

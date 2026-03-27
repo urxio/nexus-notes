@@ -572,6 +572,10 @@ export default function NotesPage() {
     return newType
   }
 
+  function updateObjectType(id: string, updates: { name?: string; emoji?: string }) {
+    setCustomObjectTypes(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+  }
+
   function deleteObjectType(typeId: string, deleteObjects: boolean) {
     if (deleteObjects) {
       const peopleToDelete = people.filter(p => (p.typeId ?? 'person') === typeId)
@@ -1035,6 +1039,7 @@ export default function NotesPage() {
                 onSignOut={handleSignOut}
                 onDeleteTag={deleteTag}
                 onCreateObjectType={createObjectType}
+                onUpdateObjectType={updateObjectType}
               />
             </div>
 
