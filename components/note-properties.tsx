@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import ReactDOM from 'react-dom'
 import {
     AlignLeft, Hash, Calendar, ChevronDown, Layers, CheckSquare,
     Link, Mail, Phone, UserCircle, Plus, X, Check, ExternalLink,
+    ChevronLeft, ChevronRight, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NoteProperty, PropertyType, PropertyOption, Person } from '@/lib/types'
@@ -237,6 +239,195 @@ function PersonMultiPopup({ people, selected, onToggle }: {
 
 // ── PropValue ──────────────────────────────────────────────────────────────────
 
+// ── Modern Property Date Picker ────────────────────────────────────────────────
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+    'July','August','September','October','November','December']
+const DAY_NAMES_SHORT = ['Su','Mo','Tu','We','Th','Fr','Sa']
+
+function toIsoDate(y: number, m: number, d: number) {
+    return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+}
+
+function PropertyDatePicker({ anchorEl, value, onChange, onClose }: {
+    anchorEl: HTMLElement | null
+    value: string
+    onChange: (iso: string | null) => void
+    onClose: () => void
+}) {
+    const today = new Date()
+    const todayIso = toIsoDate(today.getFullYear(), today.getMonth(), today.getDate())
+    const parsed = value ? new Date(value + 'T12:00:00') : today
+    const [viewYear, setViewYear] = useState(parsed.getFullYear())
+    const [viewMonth, setViewMonth] = useState(parsed.getMonth())
+    const [showYearInput, setShowYearInput] = useState(false)
+    const [yearInputVal, setYearInputVal] = useState(String(parsed.getFullYear()))
+    const [pos, setPos] = useState({ top: 0, left: 0 })
+    const pickerRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (!anchorEl) return
+        const r = anchorEl.getBoundingClientRect()
+        const pickerW = 248, pickerH = 280
+        let top = r.bottom + 6
+        let left = r.left
+        if (top + pickerH > window.innerHeight - 12) top = r.top - pickerH - 6
+        if (left + pickerW > window.innerWidth - 12) left = window.innerWidth - pickerW - 12
+        setPos({ top, left })
+    }, [anchorEl])
+
+    useEffect(() => {
+        function onDown(e: MouseEvent) {
+            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) onClose()
+        }
+        function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+        document.addEventListener('mousedown', onDown)
+        document.addEventListener('keydown', onKey)
+        return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+    }, [onClose])
+
+    function prevMonth() {
+        if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+        else setViewMonth(m => m - 1)
+    }
+    function nextMonth() {
+        if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+        else setViewMonth(m => m + 1)
+    }
+
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+    const firstDow = new Date(viewYear, viewMonth, 1).getDay()
+    const cells: (number | null)[] = [
+        ...Array(firstDow).fill(null),
+        ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ]
+    // Pad to complete last row
+    while (cells.length % 7 !== 0) cells.push(null)
+
+    return ReactDOM.createPortal(
+        <div
+            ref={pickerRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+            className="w-[248px] rounded-2xl border border-border/60 bg-popover shadow-2xl shadow-black/20 overflow-hidden"
+            onMouseDown={e => e.stopPropagation()}
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
+                <button
+                    onClick={prevMonth}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                    {/* Month selector */}
+                    <select
+                        value={viewMonth}
+                        onChange={e => setViewMonth(Number(e.target.value))}
+                        className="text-sm font-semibold bg-transparent outline-none cursor-pointer hover:text-primary transition-colors text-foreground appearance-none text-center"
+                    >
+                        {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                    </select>
+
+                    {/* Year — click to edit inline */}
+                    {showYearInput ? (
+                        <input
+                            autoFocus
+                            type="number"
+                            value={yearInputVal}
+                            onChange={e => setYearInputVal(e.target.value)}
+                            onBlur={() => {
+                                const y = parseInt(yearInputVal)
+                                if (!isNaN(y) && y > 1000 && y < 3000) setViewYear(y)
+                                else setYearInputVal(String(viewYear))
+                                setShowYearInput(false)
+                            }}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                if (e.key === 'Escape') { setYearInputVal(String(viewYear)); setShowYearInput(false) }
+                            }}
+                            className="w-14 text-sm font-semibold bg-muted/60 rounded px-1 outline-none text-center text-foreground tabular-nums"
+                        />
+                    ) : (
+                        <button
+                            onClick={() => { setYearInputVal(String(viewYear)); setShowYearInput(true) }}
+                            className="text-sm font-semibold hover:text-primary transition-colors text-foreground tabular-nums"
+                        >
+                            {viewYear}
+                        </button>
+                    )}
+                </div>
+
+                <button
+                    onClick={nextMonth}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+            </div>
+
+            {/* Day-of-week headers */}
+            <div className="grid grid-cols-7 px-2 mb-0.5">
+                {DAY_NAMES_SHORT.map(d => (
+                    <div key={d} className="text-center text-[10px] font-medium text-muted-foreground/60 py-1 tracking-wide">
+                        {d}
+                    </div>
+                ))}
+            </div>
+
+            {/* Day grid */}
+            <div className="grid grid-cols-7 gap-0 px-2 pb-2">
+                {cells.map((day, i) => {
+                    if (!day) return <div key={`e-${i}`} />
+                    const iso = toIsoDate(viewYear, viewMonth, day)
+                    const isSelected = iso === value
+                    const isToday = iso === todayIso
+                    return (
+                        <button
+                            key={iso}
+                            onClick={() => { onChange(iso); onClose() }}
+                            className={cn(
+                                'relative h-8 w-full text-xs rounded-lg font-medium transition-all duration-100 flex items-center justify-center',
+                                isSelected
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : isToday
+                                        ? 'text-primary hover:bg-primary/10'
+                                        : 'text-foreground/80 hover:bg-muted hover:text-foreground',
+                            )}
+                        >
+                            {day}
+                            {isToday && !isSelected && (
+                                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-3 py-2 border-t border-border/50">
+                <button
+                    onClick={() => { onChange(todayIso); onClose() }}
+                    className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                >
+                    Today
+                </button>
+                {value && (
+                    <button
+                        onClick={() => { onChange(null); onClose() }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                        <RotateCcw className="w-3 h-3" />
+                        Clear
+                    </button>
+                )}
+            </div>
+        </div>,
+        document.body
+    )
+}
+
 function PropValue({ prop, people, onUpdate }: {
     prop: NoteProperty
     people: Person[]
@@ -266,18 +457,30 @@ function PropValue({ prop, people, onUpdate }: {
         const display = raw
             ? new Date(raw + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : ''
+        const triggerRef = useRef<HTMLButtonElement>(null)
         return (
-            <div className="relative inline-block">
-                <input
-                    type="date"
-                    value={raw}
-                    onChange={e => onUpdate({ value: e.target.value || null })}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                />
-                <span className={cn('text-xs pointer-events-none select-none', display ? 'text-foreground' : 'text-muted-foreground/30')}>
-                    {display || 'Empty'}
-                </span>
-            </div>
+            <>
+                <button
+                    ref={triggerRef}
+                    onClick={() => setOpen(o => !o)}
+                    className={cn(
+                        'flex items-center gap-1.5 text-xs rounded-md px-1.5 py-0.5 -mx-1.5 transition-colors',
+                        'hover:bg-muted/60 group/date',
+                        display ? 'text-foreground' : 'text-muted-foreground/40',
+                    )}
+                >
+                    <Calendar className="w-3 h-3 opacity-50 group-hover/date:opacity-80 transition-opacity flex-shrink-0" />
+                    <span>{display || 'Empty'}</span>
+                </button>
+                {open && (
+                    <PropertyDatePicker
+                        anchorEl={triggerRef.current}
+                        value={raw}
+                        onChange={v => onUpdate({ value: v })}
+                        onClose={() => setOpen(false)}
+                    />
+                )}
+            </>
         )
     }
 
