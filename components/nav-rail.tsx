@@ -53,9 +53,10 @@ interface NavRailProps {
     /** Called when user clicks Sign Out; omit to hide the button (e.g. offline mode) */
     onSignOut?: () => void
     onDeleteTag: (tag: string) => void
+    onCreateObjectType?: (name: string, emoji: string) => void
 }
 
-export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut, onDeleteTag }: NavRailProps) {
+export function NavRail({ folders, selectedFolderId, onSelectFolder, people, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onDeletePerson, onCreatePerson, onCreateFolder, onDeleteFolder, onRenameFolder, onCreate, activeId, onSelect, allTags, activeTag, onTagFilter, graphOpen, onToggleGraph, notes, onToggleSidebar, trashCount, trashView, onSelectTrash, selectedObjectTypeId, onSelectObjectType, inboxView, inboxUnread, onSelectInbox, onSignOut, onDeleteTag, onCreateObjectType }: NavRailProps) {
     const { resolvedTheme } = useTheme()
     const dark = resolvedTheme !== 'light'
     const isTerminal = resolvedTheme === 'terminal'
@@ -63,6 +64,8 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const [editingName, setEditingName] = useState('')
     const [creatingType, setCreatingType] = useState<string | null>(null)
     const [creatingName, setCreatingName] = useState('')
+    const [creatingObjectType, setCreatingObjectType] = useState(false)
+    const [newObjectTypeName, setNewObjectTypeName] = useState('')
     // Track explicitly EXPANDED types. Empty set = all collapsed = correct default for new users.
     const [expandedTypes, setExpandedTypes] = useState<Set<string>>(() => {
         if (typeof window === 'undefined') return new Set()
@@ -247,12 +250,48 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
                     </div>
 
                     {/* Objects */}
-                    {visibleTypes.length > 0 && (
+                    {(visibleTypes.length > 0 || onCreateObjectType) && (
                         <div className="pt-4">
-                            <div className="px-1 mb-2 flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
-                                <span className="font-mono font-bold text-[9px] uppercase tracking-[0.2em] text-[#9ca3af] dark:text-zinc-500">Objects</span>
+                            <div className="px-1 mb-2 flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+                                    <span className="font-mono font-bold text-[9px] uppercase tracking-[0.2em] text-[#9ca3af] dark:text-zinc-500">Objects</span>
+                                </div>
+                                {onCreateObjectType && (
+                                    <button onClick={() => { setCreatingObjectType(true); setNewObjectTypeName('') }} title="New object type"
+                                        className="text-[#d1d5db] hover:text-indigo-500 dark:text-zinc-700 dark:hover:text-indigo-400 transition-colors">
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                )}
                             </div>
+                            {creatingObjectType && (
+                                <form
+                                    onSubmit={e => {
+                                        e.preventDefault()
+                                        const name = newObjectTypeName.trim()
+                                        if (name) onCreateObjectType?.(name, 'Tag')
+                                        setCreatingObjectType(false)
+                                        setNewObjectTypeName('')
+                                    }}
+                                    className="mb-2 flex items-center gap-1"
+                                >
+                                    <input
+                                        autoFocus
+                                        value={newObjectTypeName}
+                                        onChange={e => setNewObjectTypeName(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Escape') { setCreatingObjectType(false); setNewObjectTypeName('') } }}
+                                        placeholder="Type name…"
+                                        className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-slate-50 dark:bg-zinc-800 text-[11px] text-[#374151] dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 outline-none focus:ring-1 focus:ring-indigo-300 dark:focus:ring-indigo-800"
+                                    />
+                                    <button type="submit" className="p-1 text-indigo-500 hover:text-indigo-600 transition-colors flex-shrink-0">
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                    <button type="button" onClick={() => { setCreatingObjectType(false); setNewObjectTypeName('') }}
+                                        className="p-1 text-[#d1d5db] hover:text-[#9ca3af] dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors flex-shrink-0">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </form>
+                            )}
                             <div className="space-y-2">
                                 {visibleTypes.map(objType => {
                                     const typeObjects = people
