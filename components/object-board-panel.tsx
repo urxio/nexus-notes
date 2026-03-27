@@ -139,50 +139,65 @@ export function ObjectBoardPanel({
         return result
     }, [objectType.id, objects, notes])
 
+    // localStorage keys for this type
+    const visibleKey = `locus-board-visible-${objectType.id}`
+    const knownKey = `locus-board-known-${objectType.id}`
+
+    // Helpers to read/write localStorage JSON arrays
+    function readLs(key: string): string[] | null {
+        try { const r = localStorage.getItem(key); return r !== null ? JSON.parse(r) as string[] : null } catch { return null }
+    }
+    function writeLs(key: string, v: string[]) {
+        try { localStorage.setItem(key, JSON.stringify(v)) } catch {}
+    }
+
     // Persisted visible prop names per type — default: all visible on first visit
     const [visiblePropNames, setVisiblePropNames] = useState<string[]>(() => {
         if (typeof window === 'undefined') return []
-        try {
-            const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            if (raw !== null) return JSON.parse(raw) as string[]
-        } catch {}
-        return [] // will be filled by the effect below once allPropNames is known
+        return readLs(visibleKey) ?? []
     })
 
-    // Re-sync when the object type changes or when allPropNames grows (new props added to notes).
-    // Any property in allPropNames that isn't in the stored list is added as visible by default.
+    // Re-sync when the object type changes or when allPropNames grows.
+    // Only auto-add props that are truly new (never seen before in "known" list).
+    // Props the user toggled off stay off because they're in "known" but not "visible".
     useEffect(() => {
-        setVisiblePropNames(prev => {
-            let stored: string[] | null = null
-            try {
-                const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-                if (raw !== null) stored = JSON.parse(raw) as string[]
-            } catch {}
+        const known = readLs(knownKey)
+        const stored = readLs(visibleKey)
 
-            if (stored === null) {
-                // No stored prefs yet — show everything
-                try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(allPropNames)) } catch {}
-                return allPropNames
-            }
+        if (known === null || stored === null) {
+            // First visit — everything visible and known
+            writeLs(knownKey, allPropNames)
+            writeLs(visibleKey, allPropNames)
+            setVisiblePropNames(allPropNames)
+            return
+        }
 
-            // Keep existing stored choices; auto-add any newly discovered props as visible
-            const newProps = allPropNames.filter(n => !stored!.includes(n))
-            const pruned = stored.filter(n => allPropNames.includes(n))
-            if (newProps.length === 0 && pruned.length === stored.length) return prev // nothing changed
+        // Detect truly new props (not in the known set — user never saw them before)
+        const knownSet = new Set(known)
+        const newProps = allPropNames.filter(n => !knownSet.has(n))
 
-            const updated = [...pruned, ...newProps]
-            try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(updated)) } catch {}
-            return updated
-        })
+        // Update known set to include all current props
+        if (newProps.length > 0) {
+            writeLs(knownKey, [...known, ...newProps])
+        }
+
+        // Prune stored visible to only props that still exist, then add truly new ones
+        const pruned = stored.filter(n => allPropNames.includes(n))
+        const updated = [...pruned, ...newProps]
+
+        if (updated.length !== stored.length || newProps.length > 0 || pruned.length !== stored.length) {
+            writeLs(visibleKey, updated)
+            setVisiblePropNames(updated)
+        } else {
+            setVisiblePropNames(pruned)
+        }
     }, [allPropNames, objectType.id])
 
     // Toggle a prop — saves synchronously so localStorage is always current.
     const togglePropVisible = (name: string) => {
         setVisiblePropNames(prev => {
             const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-            try {
-                localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(next))
-            } catch {}
+            writeLs(visibleKey, next)
             return next
         })
     }
