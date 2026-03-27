@@ -13,7 +13,7 @@ import {
   Plus, Search, Hash, Network, FileText, Trash2, X,
   AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
   Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
-  ChevronRight, BookOpen, Calendar, GripVertical,
+  ChevronRight, ChevronLeft, BookOpen, Calendar, GripVertical, Menu,
   User, Bold, Italic, Strikethrough, Palette, Underline,
   Maximize2, Minimize2, FolderPlus, Pencil, Folder as FolderIcon,
   Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
@@ -57,6 +57,7 @@ import { NoteEditor } from "@/components/note-editor"
 import { Sidebar } from "@/components/sidebar"
 import { InboxPanel } from "@/components/inbox-panel"
 import { TerminalShell } from "@/components/terminal-shell"
+import { useIsMobile } from "@/components/ui/use-mobile"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,13 @@ export default function NotesPage() {
   const [inboxView, setInboxView] = useState(false)
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const { toast } = useToast()
+  const isMobile = useIsMobile()
+  const [mobileView, setMobileView] = useState<'nav' | 'list' | 'editor'>('list')
+
+  // ─── Mobile: auto-switch to editor when note selected ──────────────────────
+  useEffect(() => {
+    if (isMobile && activeId) setMobileView('editor')
+  }, [isMobile, activeId])
 
   // ─── Prev-state refs for Supabase diff-sync ─────────────────────────────────
   // Populated during bootstrap so initial data doesn't fire unnecessary upserts
@@ -986,9 +994,191 @@ export default function NotesPage() {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-screen overflow-hidden p-3 gap-3"
+      <div className={cn("flex h-screen overflow-hidden", isMobile ? "flex-col p-0 gap-0" : "p-3 gap-3")}
         style={{ background: !mounted ? LIGHT_BG : resolvedTheme === 'terminal' ? TERMINAL_BG : resolvedTheme === 'dark' ? DARK_BG : LIGHT_BG }}>
 
+        {/* ═══ MOBILE LAYOUT ═══ */}
+        {isMobile ? (
+          <>
+            {/* Mobile: Nav view */}
+            {mobileView === 'nav' && (
+              <div className="flex-1 overflow-hidden bg-white/80 dark:bg-zinc-950/80">
+                <NavRail
+                  folders={folders}
+                  selectedFolderId={selectedFolderId}
+                  onSelectFolder={id => { setSelectedFolderId(id); setTrashView(false); setSelectedObjectTypeId(null); setInboxView(false); setMobileView('list') }}
+                  people={people}
+                  objectTypes={customObjectTypes}
+                  deletedObjectTypes={deletedObjectTypes}
+                  onPromptDeleteObjectType={setDeleteTypePrompt}
+                  onDeletePerson={deletePerson}
+                  onCreatePerson={createPerson}
+                  onCreateFolder={createFolder}
+                  onDeleteFolder={deleteFolder}
+                  onRenameFolder={renameFolder}
+                  onCreate={() => { createNote(); setMobileView('editor') }}
+                  activeId={activeId}
+                  onSelect={id => { setActiveId(id); setNavStack([]) }}
+                  allTags={allTags}
+                  activeTag={activeTag}
+                  onTagFilter={tag => { setActiveTag(tag); setTrashView(false); setSelectedObjectTypeId(null); setInboxView(false); setMobileView('list') }}
+                  graphOpen={false}
+                  onToggleGraph={() => {}}
+                  notes={liveNotes}
+                  onToggleSidebar={() => setMobileView('list')}
+                  trashCount={trashCount}
+                  trashView={trashView}
+                  onSelectTrash={() => { setTrashView(true); setSelectedFolderId(null); setActiveTag(null); setSelectedObjectTypeId(null); setInboxView(false); setMobileView('list') }}
+                  selectedObjectTypeId={selectedObjectTypeId}
+                  onSelectObjectType={typeId => {
+                    setSelectedObjectTypeId(typeId); setTrashView(false); setSelectedFolderId(null); setActiveTag(null); setInboxView(false); setMobileView('list')
+                  }}
+                  inboxView={inboxView}
+                  inboxUnread={inboxItems.filter(i => !i.read).length}
+                  onSelectInbox={() => {
+                    setInboxView(true); setTrashView(false); setSelectedFolderId(null); setActiveTag(null); setSelectedObjectTypeId(null); setMobileView('list')
+                  }}
+                  onSignOut={handleSignOut}
+                  onDeleteTag={deleteTag}
+                  onCreateObjectType={createObjectType}
+                  onUpdateObjectType={updateObjectType}
+                />
+              </div>
+            )}
+
+            {/* Mobile: List view */}
+            {mobileView === 'list' && (
+              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950">
+                {(() => {
+                  if (inboxView) {
+                    return (
+                      <InboxPanel
+                        items={inboxItems}
+                        activeId={activeId}
+                        onSelectItem={item => {
+                          setActiveId(item.noteId); setNavStack([])
+                          setInboxItems(prev => prev.map(i => i.id === item.id ? { ...i, read: true } : i))
+                        }}
+                        onMarkAllRead={() => setInboxItems(prev => prev.map(i => ({ ...i, read: true })))}
+                        onClearInbox={() => setInboxItems([])}
+                      />
+                    )
+                  }
+                  const allTypes = [...BUILTIN_OBJECT_TYPES, ...customObjectTypes]
+                  const boardType = selectedObjectTypeId ? allTypes.find(t => t.id === selectedObjectTypeId) : null
+                  if (boardType) {
+                    const boardObjects = people
+                      .filter(p => (p.typeId ?? 'person') === boardType.id)
+                      .filter(p => p.noteId && liveNotes.some(n => n.id === p.noteId))
+                    return (
+                      <ObjectBoardPanel
+                        key={boardType.id}
+                        objectType={boardType}
+                        objects={boardObjects}
+                        notes={liveNotes}
+                        people={people}
+                        activeId={activeId}
+                        onSelectObject={id => { setActiveId(id); setNavStack([]) }}
+                        onCreateObject={(name, typeId) => createPerson(name, typeId)}
+                      />
+                    )
+                  }
+                  return (
+                    <NoteListPanel
+                      notes={panelNotes}
+                      folders={folders}
+                      selectedFolderId={selectedFolderId}
+                      activeTag={activeTag}
+                      activeId={activeId}
+                      onSelect={id => { setActiveId(id); setNavStack([]) }}
+                      onCreate={createNote}
+                      search={search}
+                      onSearch={setSearch}
+                      onMoveNote={moveNoteToFolder}
+                      onDeleteNote={deleteNote}
+                      isTrash={trashView}
+                      onRestoreNote={restoreNote}
+                      onPermanentDeleteNote={permanentlyDeleteNote}
+                    />
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* Mobile: Editor view */}
+            {mobileView === 'editor' && (
+              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950 relative">
+                {/* Back button */}
+                <button onClick={() => setMobileView('list')} title="Back to notes"
+                  className="absolute top-3 left-3 z-30 w-8 h-8 rounded-xl bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm hover:bg-[#f3f4f6] dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-[#e5e7eb] dark:border-zinc-700">
+                  <ChevronLeft className="w-4 h-4 text-[#6b7280] dark:text-zinc-400" />
+                </button>
+                {activeNote ? (
+                  <NoteEditor
+                    key={activeNote.id}
+                    note={activeNote}
+                    allTags={allTags}
+                    onChange={updateNote}
+                    onDelete={deleteNote}
+                    people={people}
+                    onCreatePerson={createPerson}
+                    onNavigateTo={navigateTo}
+                    navStack={navStack.map(id => notes.find(n => n.id === id)).filter((n): n is Note => !!n)}
+                    onBreadcrumbNav={navigateToBreadcrumb}
+                    objectTypes={customObjectTypes}
+                    deletedObjectTypes={deletedObjectTypes}
+                    onCreateObjectType={createObjectType}
+                    sidebarOpen={false}
+                    onToggleSidebar={() => setMobileView('nav')}
+                    notes={notes}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-[#f9fafb] dark:bg-zinc-800 flex items-center justify-center border border-[#e5e7eb] dark:border-zinc-700">
+                      <BookOpen className="w-6 h-6 text-[#d1d5db] dark:text-zinc-700" />
+                    </div>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#d1d5db] dark:text-zinc-700">No page selected</p>
+                    <p className="text-[13px] mt-1 text-[#9ca3af] dark:text-zinc-600">Select a note from the list</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mobile: Bottom tab bar */}
+            <div className="flex-shrink-0 h-14 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-black/5 dark:border-white/5 flex items-center justify-around px-2 safe-area-pb">
+              <button onClick={() => setMobileView('nav')}
+                className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
+                  mobileView === 'nav' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
+                <Menu className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Browse</span>
+              </button>
+              <button onClick={() => setMobileView('list')}
+                className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
+                  mobileView === 'list' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
+                <FileText className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Notes</span>
+              </button>
+              <button onClick={() => { createNote(); setMobileView('editor') }}
+                className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 -mt-5">
+                <Plus className="w-5 h-5" />
+              </button>
+              <button onClick={() => { if (activeId) setMobileView('editor') }}
+                className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
+                  mobileView === 'editor' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500",
+                  !activeId && "opacity-30")}>
+                <BookOpen className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Editor</span>
+              </button>
+              <button onClick={() => { setSearch(''); setMobileView('list') }}
+                className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-zinc-400 dark:text-zinc-500 transition-colors">
+                <Search className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Search</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          /* ═══ DESKTOP LAYOUT (unchanged) ═══ */
+          <>
         {sidebarOpen && (
           <>
             {/* Col 1: Nav Rail card — glass column, must NOT clip backdrop-blur */}
@@ -1243,6 +1433,8 @@ export default function NotesPage() {
             </>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Delete Object Type Dialog */}
