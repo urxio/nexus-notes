@@ -123,50 +123,63 @@ export function ObjectBoardPanel({
     const settingsRef = useRef<HTMLDivElement>(null)
     const [cardCtxMenu, setCardCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
-    // Canonical property names for this type ONLY — never mix in props from other types
+    // Live property names for this type — union of actual properties across all notes of this type,
+    // with static defaults first to preserve their ordering.
     const allPropNames = useMemo(() => {
-        return defaultPropertiesForType(objectType.id).map(p => p.name)
-    }, [objectType.id])
+        const defaults = defaultPropertiesForType(objectType.id).map(p => p.name)
+        const fromNotes = objects.flatMap(obj => {
+            const note = notes.find(n => n.id === obj.noteId)
+            return note?.properties?.map(p => p.name) ?? []
+        })
+        const seen = new Set<string>()
+        const result: string[] = []
+        for (const name of [...defaults, ...fromNotes]) {
+            if (!seen.has(name)) { seen.add(name); result.push(name) }
+        }
+        return result
+    }, [objectType.id, objects, notes])
 
     // Persisted visible prop names per type — default: all visible on first visit
     const [visiblePropNames, setVisiblePropNames] = useState<string[]>(() => {
-        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
-        if (typeof window === 'undefined') return canonical
+        if (typeof window === 'undefined') return []
         try {
             const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            if (raw !== null) {
-                // Key exists — respect the saved list even if the user hid everything (empty array)
-                const saved = JSON.parse(raw) as string[]
-                return saved.filter(n => canonical.includes(n))
-            }
+            if (raw !== null) return JSON.parse(raw) as string[]
         } catch {}
-        return canonical  // first visit, no prefs stored → show everything
+        return [] // will be filled by the effect below once allPropNames is known
     })
 
-    // Re-sync when the object type changes (component may stay mounted across type switches)
+    // Re-sync when the object type changes or when allPropNames grows (new props added to notes).
+    // Any property in allPropNames that isn't in the stored list is added as visible by default.
     useEffect(() => {
-        const canonical = defaultPropertiesForType(objectType.id).map(p => p.name)
-        try {
-            const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
-            if (raw !== null) {
-                const saved = JSON.parse(raw) as string[]
-                setVisiblePropNames(saved.filter(n => canonical.includes(n)))
-            } else {
-                setVisiblePropNames(canonical)
-            }
-        } catch {
-            setVisiblePropNames(canonical)
-        }
-    }, [objectType.id])
+        setVisiblePropNames(prev => {
+            let stored: string[] | null = null
+            try {
+                const raw = localStorage.getItem(`locus-board-visible-${objectType.id}`)
+                if (raw !== null) stored = JSON.parse(raw) as string[]
+            } catch {}
 
-    // Toggle a prop — saves synchronously so localStorage is always current,
-    // even if the component remounts before an async effect would have fired.
+            if (stored === null) {
+                // No stored prefs yet — show everything
+                try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(allPropNames)) } catch {}
+                return allPropNames
+            }
+
+            // Keep existing stored choices; auto-add any newly discovered props as visible
+            const newProps = allPropNames.filter(n => !stored!.includes(n))
+            const pruned = stored.filter(n => allPropNames.includes(n))
+            if (newProps.length === 0 && pruned.length === stored.length) return prev // nothing changed
+
+            const updated = [...pruned, ...newProps]
+            try { localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(updated)) } catch {}
+            return updated
+        })
+    }, [allPropNames, objectType.id])
+
+    // Toggle a prop — saves synchronously so localStorage is always current.
     const togglePropVisible = (name: string) => {
         setVisiblePropNames(prev => {
-            const clean = prev.filter(n => allPropNames.includes(n))
-            const next = clean.includes(name)
-                ? clean.filter(n => n !== name)
-                : [...clean, name]
+            const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
             try {
                 localStorage.setItem(`locus-board-visible-${objectType.id}`, JSON.stringify(next))
             } catch {}
@@ -295,10 +308,9 @@ export function ObjectBoardPanel({
                             // Show all toggled-on properties (by name), restricted to this type's canonical props
                             const noteProps = note?.properties ?? []
                             const visibleProps = visiblePropNames
-                                .filter(name => allPropNames.includes(name)) // strict type guard — never show other-type props
+                                .filter(name => allPropNames.includes(name))
                                 .map(name => {
                                     const found = noteProps.find(p => p.name === name)
-                                    // Fall back to a default empty prop so the row still shows
                                     return found ?? { id: name, name, type: 'text' as const, value: null }
                                 })
 
