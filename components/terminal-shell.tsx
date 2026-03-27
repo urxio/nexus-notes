@@ -330,11 +330,11 @@ export function TerminalShell(props: TerminalShellProps) {
                 marginLeft: 'auto', flexShrink: 0,
                 width: 28, height: 28, borderRadius: 7,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(74,107,94,0.50)', cursor: 'pointer',
+                color: 'rgba(100,150,128,0.65)', cursor: 'pointer',
                 transition: 'color 0.12s',
               }}
               onMouseEnter={e => (e.currentTarget.style.color = 'rgba(78,205,196,0.65)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(74,107,94,0.45)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(100,150,128,0.55)')}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -400,7 +400,7 @@ export function TerminalShell(props: TerminalShellProps) {
           {activeNote && (
             <div className="ts-sb-item">
               {activeNote.tags.map(t => (
-                <span key={t} style={{ color: '#4a6b5e', fontSize: 10 }}>#{t}</span>
+                <span key={t} style={{ color: '#6a9b8a', fontSize: 10 }}>#{t}</span>
               ))}
             </div>
           )}
@@ -449,7 +449,7 @@ export function TerminalShell(props: TerminalShellProps) {
           </div>
         )}
         <div className="ts-glass ts-cmd-bar">
-          <CmdIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(74,107,94,0.50)' }} />
+          <CmdIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(100,150,128,0.65)' }} />
           <input
             ref={cmdRef}
             value={cmdQuery}
@@ -459,7 +459,7 @@ export function TerminalShell(props: TerminalShellProps) {
             onBlur={() => setTimeout(() => setCmdOpen(false), 140)}
             onKeyDown={handleCmdKey}
           />
-          <span style={{ fontSize: 10, color: 'rgba(74,107,94,0.40)', flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>⌘K</span>
+          <span style={{ fontSize: 10, color: 'rgba(100,150,128,0.55)', flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>⌘K</span>
         </div>
       </div>
     </div>
