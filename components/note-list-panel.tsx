@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Plus, Search, FileText, Trash2, RotateCcw, Columns2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -23,6 +23,7 @@ interface NoteListPanelProps {
     onRestoreNote?: (noteId: string) => void
     onPermanentDeleteNote?: (noteId: string) => void
     onOpenInSplit?: (noteId: string) => void
+    autoFocusSearch?: boolean
 }
 
 // ── Terminal ghost preview helpers ──────────────────────────────────────────
@@ -138,12 +139,19 @@ function TerminalGhostPreview({ note, anchor, formatDate }: {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote, isTrash, onRestoreNote, onPermanentDeleteNote, onOpenInSplit }: NoteListPanelProps) {
+export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, activeId, onSelect, onCreate, search, onSearch, onMoveNote, onDeleteNote, isTrash, onRestoreNote, onPermanentDeleteNote, onOpenInSplit, autoFocusSearch }: NoteListPanelProps) {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
     const { resolvedTheme } = useTheme()
     const isTerminal = resolvedTheme === 'terminal'
     const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null)
     const [previewAnchor, setPreviewAnchor] = useState<{ top: number; left: number } | null>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (autoFocusSearch) {
+            setTimeout(() => searchInputRef.current?.focus(), 100)
+        }
+    }, [autoFocusSearch])
 
     const label = isTrash
         ? 'Trash'
@@ -209,7 +217,7 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                 {/* Search */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-[#d1d5db] dark:text-zinc-600" />
-                    <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search…"
+                    <input ref={searchInputRef} value={search} onChange={e => onSearch(e.target.value)} placeholder="Search…"
                         className="w-full pl-8 pr-4 py-2 rounded-xl bg-[#f9fafb] dark:bg-zinc-800 text-[12px] text-[#374151] dark:text-zinc-300 placeholder-[#d1d5db] dark:placeholder-zinc-600 border border-[#e5e7eb] dark:border-zinc-700 outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900/50 focus:border-indigo-300 transition-all"
                     />
                 </div>

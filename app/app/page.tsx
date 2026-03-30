@@ -142,6 +142,7 @@ export default function NotesPage() {
   const { toast } = useToast()
   const isMobile = useIsMobile()
   const [mobileView, setMobileView] = useState<'nav' | 'list' | 'editor'>('list')
+  const [mobileSearchFocus, setMobileSearchFocus] = useState(false)
 
   // ─── Mobile: auto-switch to editor when note selected ──────────────────────
   useEffect(() => {
@@ -1002,7 +1003,7 @@ export default function NotesPage() {
           <>
             {/* Mobile: Nav view */}
             {mobileView === 'nav' && (
-              <div className="flex-1 overflow-hidden bg-white/80 dark:bg-zinc-950/80">
+              <div className="flex-1 overflow-hidden bg-white/80 dark:bg-zinc-950/80 pb-16">
                 <NavRail
                   folders={folders}
                   selectedFolderId={selectedFolderId}
@@ -1048,7 +1049,7 @@ export default function NotesPage() {
 
             {/* Mobile: List view */}
             {mobileView === 'list' && (
-              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950">
+              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950 pb-16">
                 {(() => {
                   if (inboxView) {
                     return (
@@ -1090,7 +1091,7 @@ export default function NotesPage() {
                       selectedFolderId={selectedFolderId}
                       activeTag={activeTag}
                       activeId={activeId}
-                      onSelect={id => { setActiveId(id); setNavStack([]) }}
+                      onSelect={id => { setActiveId(id); setNavStack([]); setMobileSearchFocus(false) }}
                       onCreate={createNote}
                       search={search}
                       onSearch={setSearch}
@@ -1099,6 +1100,7 @@ export default function NotesPage() {
                       isTrash={trashView}
                       onRestoreNote={restoreNote}
                       onPermanentDeleteNote={permanentlyDeleteNote}
+                      autoFocusSearch={mobileSearchFocus}
                     />
                   )
                 })()}
@@ -1107,7 +1109,7 @@ export default function NotesPage() {
 
             {/* Mobile: Editor view */}
             {mobileView === 'editor' && (
-              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950 relative">
+              <div className="flex-1 overflow-hidden bg-white dark:bg-zinc-950 relative pb-16">
                 {/* Back button */}
                 <button onClick={() => setMobileView('list')} title="Back to notes"
                   className="absolute top-3 left-3 z-30 w-8 h-8 rounded-xl bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm hover:bg-[#f3f4f6] dark:hover:bg-zinc-700 flex items-center justify-center transition-all shadow-sm border border-[#e5e7eb] dark:border-zinc-700">
@@ -1145,14 +1147,14 @@ export default function NotesPage() {
             )}
 
             {/* Mobile: Bottom tab bar */}
-            <div className="flex-shrink-0 h-14 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-black/5 dark:border-white/5 flex items-center justify-around px-2 safe-area-pb">
-              <button onClick={() => setMobileView('nav')}
+            <div className="fixed bottom-0 left-0 right-0 z-50 h-14 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-black/5 dark:border-white/5 flex items-center justify-around px-2 safe-area-pb">
+              <button onClick={() => { setMobileSearchFocus(false); setMobileView('nav') }}
                 className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
                   mobileView === 'nav' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
                 <Menu className="w-5 h-5" />
                 <span className="text-[9px] font-medium">Browse</span>
               </button>
-              <button onClick={() => setMobileView('list')}
+              <button onClick={() => { setMobileSearchFocus(false); setMobileView('list') }}
                 className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
                   mobileView === 'list' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
                 <FileText className="w-5 h-5" />
@@ -1169,7 +1171,7 @@ export default function NotesPage() {
                 <BookOpen className="w-5 h-5" />
                 <span className="text-[9px] font-medium">Editor</span>
               </button>
-              <button onClick={() => { setSearch(''); setMobileView('list') }}
+              <button onClick={() => { setSearch(''); setMobileSearchFocus(true); setMobileView('list') }}
                 className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-zinc-400 dark:text-zinc-500 transition-colors">
                 <Search className="w-5 h-5" />
                 <span className="text-[9px] font-medium">Search</span>
