@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import Image from "next/image"
 import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, Mail, LogOut } from "lucide-react"
 
-const DISCORD_URL = 'https://discord.gg/8kCf3Eht'
+const DISCORD_URL = 'https://discord.gg/5vWNJkTn'
 
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
     return (

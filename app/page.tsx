@@ -4,7 +4,7 @@ import { ArrowRight, BrainCircuit, Network, Zap, FileText, Hash, User } from 'lu
 import Link from 'next/link'
 import Image from 'next/image'
 
-const DISCORD_URL = 'https://discord.gg/8kCf3Eht'
+const DISCORD_URL = 'https://discord.gg/5vWNJkTn'
 
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
