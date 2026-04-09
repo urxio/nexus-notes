@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react"
 import { useTheme } from "next-themes"
-import { Plus, Trash2, X, ChevronRight, BookOpen, PanelLeftOpen, Hash } from "lucide-react"
+import { Plus, Trash2, X, ChevronRight, BookOpen, PanelLeftOpen, Hash, Link2, Download, FileText, FileJson, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,8 @@ import { NoteIcon } from "./note-icon"
 import { FormatToolbar } from "./format-toolbar"
 import { BlockItem } from "./block-item"
 import { NoteProperties } from "./note-properties"
+import { getBacklinks } from "@/lib/backlinks"
+import { noteToMarkdown, noteToJson, downloadFile, titleToFilename } from "@/lib/export"
 
 interface NoteEditorProps {
     note: Note
@@ -136,7 +138,26 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
     const [tagInput, setTagInput] = useState('')
     const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
     const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+    const [showExportMenu, setShowExportMenu] = useState(false)
+    const exportMenuRef = useRef<HTMLDivElement>(null)
     const titleRef = useRef<HTMLTextAreaElement>(null)
+
+    // Close export menu when clicking outside
+    useEffect(() => {
+        function handleOutsideClick(e: MouseEvent) {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+                setShowExportMenu(false)
+            }
+        }
+        if (showExportMenu) document.addEventListener('mousedown', handleOutsideClick)
+        return () => document.removeEventListener('mousedown', handleOutsideClick)
+    }, [showExportMenu])
+
+    const backlinks = useMemo(
+        () => getBacklinks(note.id, notes, people),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [note.id, notes, people]
+    )
 
     // Auto-focus first block when a fresh (single empty block) note is opened
     useEffect(() => {
@@ -967,6 +988,52 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             </TooltipProvider>
                         </>
                     )}
+                    {/* Export dropdown */}
+                    <div className="relative" ref={exportMenuRef}>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 gap-1 px-2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowExportMenu(v => !v)}
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        <ChevronDown className="w-3 h-3 opacity-60" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Export note</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        {showExportMenu && (
+                            <div className="absolute right-0 top-full z-50 mt-1 bg-popover border rounded-lg shadow-lg overflow-hidden min-w-[160px]">
+                                <button
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-accent flex items-center gap-2"
+                                    onClick={() => {
+                                        const md = noteToMarkdown(note, notes)
+                                        downloadFile(md, `${titleToFilename(note.title)}.md`, 'text/markdown')
+                                        setShowExportMenu(false)
+                                    }}
+                                >
+                                    <FileText className="w-4 h-4 text-muted-foreground" />
+                                    Export as Markdown
+                                </button>
+                                <button
+                                    className="w-full px-3 py-2 text-sm text-left hover:bg-accent flex items-center gap-2"
+                                    onClick={() => {
+                                        const json = noteToJson(note, notes, people)
+                                        downloadFile(json, `${titleToFilename(note.title)}.json`, 'application/json')
+                                        setShowExportMenu(false)
+                                    }}
+                                >
+                                    <FileJson className="w-4 h-4 text-muted-foreground" />
+                                    Export as JSON
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -1156,6 +1223,39 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                             Press Enter or comma to add · Notes sharing tags connect in the graph
                         </p>
                     </div>
+
+                    {/* Backlinks */}
+                    {backlinks.length > 0 && (
+                        <div className="mt-10 pt-6 border-t">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    Linked by {backlinks.length} {backlinks.length === 1 ? 'note' : 'notes'}
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {backlinks.map(({ note: src, snippet }) => (
+                                    <button
+                                        key={src.id}
+                                        className="group text-left rounded-lg border border-transparent hover:border-border hover:bg-muted/50 px-3 py-2.5 transition-colors"
+                                        onClick={() => onNavigateTo?.(src.id)}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <NoteIcon iconName={src.emoji} className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                            <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
+                                                {src.title || 'Untitled'}
+                                            </span>
+                                        </div>
+                                        {snippet && (
+                                            <p className="text-xs text-muted-foreground/70 line-clamp-2 leading-relaxed pl-5">
+                                                {snippet}
+                                            </p>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Meta */}
                     <div className="mt-6 flex gap-4 text-[10px] text-muted-foreground/60">
