@@ -420,6 +420,27 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
             onPointerLeave={() => { setHovered(null); panRef.current.active = false }}
             onWheel={handleWheel}
         >
+            {/* ── Empty state ─────────────────────────────────────────────── */}
+            {visibleNodes.length === 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none select-none">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                        <circle cx="20" cy="20" r="19" stroke={T.empty} strokeWidth="1.5" strokeDasharray="4 3" />
+                        <circle cx="20" cy="20" r="4" fill={T.empty} />
+                        <circle cx="8"  cy="16" r="2.5" fill={T.empty} />
+                        <circle cx="32" cy="16" r="2.5" fill={T.empty} />
+                        <circle cx="14" cy="31" r="2.5" fill={T.empty} />
+                        <line x1="20" y1="20" x2="8"  y2="16" stroke={T.empty} strokeWidth="1" />
+                        <line x1="20" y1="20" x2="32" y2="16" stroke={T.empty} strokeWidth="1" />
+                        <line x1="20" y1="20" x2="14" y2="31" stroke={T.empty} strokeWidth="1" />
+                    </svg>
+                    <p style={{ color: T.empty, fontSize: 11, fontFamily: 'ui-monospace, monospace', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        {localMode ? 'No connections on this page' : 'No tags or links yet'}
+                    </p>
+                    <p style={{ color: T.empty, fontSize: 10, opacity: 0.6 }}>
+                        {localMode ? 'Add #tags or @mentions to see connections' : 'Create notes with #tags to build the graph'}
+                    </p>
+                </div>
+            )}
             <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
                 <defs>
                     <pattern id="g-dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">

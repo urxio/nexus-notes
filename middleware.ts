@@ -21,10 +21,19 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    // Refresh the session — if Supabase is unreachable, default to no user (offline fallback)
-    const { data: { user } } = await supabase.auth
+    // Refresh the session — if Supabase is unreachable, fall back to no user so
+    // the app can still serve offline/local-mode requests. Errors are logged so
+    // outages don't silently bypass auth for non-local-mode users.
+    const { data: { user }, error: authError } = await supabase.auth
         .getUser()
-        .catch(() => ({ data: { user: null } }) as any)
+        .catch((err: unknown) => {
+            console.error('[middleware] Supabase auth network error:', err instanceof Error ? err.message : err)
+            return { data: { user: null }, error: err }
+        })
+
+    if (authError) {
+        console.warn('[middleware] Auth check returned an error — applying offline fallback:', authError)
+    }
 
     const { pathname } = request.nextUrl
 

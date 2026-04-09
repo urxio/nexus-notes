@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import {
   Plus, FileText, X,
   PanelLeftOpen,
-  ChevronLeft, BookOpen, GripVertical, Menu,
+  ChevronLeft, BookOpen, GripVertical, Menu, Network,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useToast } from "@/components/ui/use-toast"
@@ -112,7 +112,7 @@ export default function NotesPage() {
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const { toast } = useToast()
   const isMobile = useIsMobile()
-  const [mobileView, setMobileView] = useState<'nav' | 'list' | 'editor'>('list')
+  const [mobileView, setMobileView] = useState<'nav' | 'list' | 'editor' | 'graph'>('list')
   const [mobileSearchFocus, setMobileSearchFocus] = useState(false)
 
   // ─── Mobile: auto-switch to editor when note selected ──────────────────────
@@ -1156,6 +1156,20 @@ export default function NotesPage() {
               </div>
             )}
 
+            {/* Mobile: Graph view */}
+            {mobileView === 'graph' && (
+              <div className="flex-1 overflow-hidden relative pb-14">
+                <GraphPanel
+                  notes={liveNotes}
+                  people={people}
+                  activeNoteId={activeId}
+                  onSelectNote={id => { navigateTo(id); setMobileView('editor') }}
+                  isExpanded={false}
+                  onToggleExpand={() => {}}
+                />
+              </div>
+            )}
+
             {/* Mobile: Bottom tab bar */}
             <div className="fixed bottom-0 left-0 right-0 z-50 h-14 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-black/5 dark:border-white/5 flex items-center justify-around px-2 safe-area-pb">
               <button onClick={() => { setMobileSearchFocus(false); setMobileView('nav') }}
@@ -1169,6 +1183,12 @@ export default function NotesPage() {
                   mobileView === 'list' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
                 <FileText className="w-5 h-5" />
                 <span className="text-[9px] font-medium">Notes</span>
+              </button>
+              <button onClick={() => { setMobileSearchFocus(false); setMobileView('graph') }}
+                className={cn("flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors",
+                  mobileView === 'graph' ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400 dark:text-zinc-500")}>
+                <Network className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Graph</span>
               </button>
             </div>
           </>

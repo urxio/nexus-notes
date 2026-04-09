@@ -146,12 +146,38 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
     const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null)
     const [previewAnchor, setPreviewAnchor] = useState<{ top: number; left: number } | null>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
+    const [keyFocusIdx, setKeyFocusIdx] = useState<number>(-1)
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
     useEffect(() => {
         if (autoFocusSearch) {
             setTimeout(() => searchInputRef.current?.focus(), 100)
         }
     }, [autoFocusSearch])
+
+    // Reset keyboard focus index whenever the list changes
+    useEffect(() => { setKeyFocusIdx(-1) }, [notes])
+
+    // Scroll the keyboard-focused item into view
+    useEffect(() => {
+        if (keyFocusIdx >= 0) itemRefs.current[keyFocusIdx]?.scrollIntoView({ block: 'nearest' })
+    }, [keyFocusIdx])
+
+    function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (notes.length === 0) return
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setKeyFocusIdx(i => Math.min(i + 1, notes.length - 1))
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setKeyFocusIdx(i => Math.max(i - 1, 0))
+        } else if (e.key === 'Enter' && keyFocusIdx >= 0) {
+            e.preventDefault()
+            onSelect(notes[keyFocusIdx].id)
+        } else if (e.key === 'Escape') {
+            setKeyFocusIdx(-1)
+        }
+    }
 
     const label = isTrash
         ? 'Trash'
@@ -218,6 +244,7 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-[#d1d5db] dark:text-zinc-600" />
                     <input ref={searchInputRef} value={search} onChange={e => onSearch(e.target.value)} placeholder="Search…"
+                        onKeyDown={handleSearchKeyDown}
                         className="w-full pl-8 pr-4 py-2 rounded-xl bg-[#f9fafb] dark:bg-zinc-800 text-[12px] text-[#374151] dark:text-zinc-300 placeholder-[#d1d5db] dark:placeholder-zinc-600 border border-[#e5e7eb] dark:border-zinc-700 outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-900/50 focus:border-indigo-300 transition-all"
                     />
                 </div>
@@ -234,12 +261,14 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                     </div>
                 ) : (
                     <div className="px-3 pt-3 pb-3 space-y-2">
-                        {notes.map(note => {
+                        {notes.map((note, idx) => {
                             const isActive = note.id === activeId
+                            const isKeyFocused = idx === keyFocusIdx
                             const preview = getPreview(note)
                             return (
                                 <button key={note.id}
-                                    onClick={() => onSelect(note.id)}
+                                    ref={el => { itemRefs.current[idx] = el }}
+                                    onClick={() => { onSelect(note.id); setKeyFocusIdx(idx) }}
                                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
                                     onMouseEnter={e => {
                                         if (!isTerminal) return
@@ -255,7 +284,9 @@ export function NoteListPanel({ notes, folders, selectedFolderId, activeTag, act
                                         "w-full text-left p-3.5 rounded-xl transition-all cursor-pointer",
                                         isActive
                                             ? "bg-white dark:bg-zinc-800 border-2 border-indigo-500 dark:border-indigo-500 shadow-[0_2px_12px_rgba(99,102,241,0.12)]"
-                                            : "bg-white dark:bg-zinc-800/50 border border-[#e5e7eb] dark:border-zinc-700/60 hover:border-[#c7d2fe] dark:hover:border-indigo-800 hover:shadow-sm hover:bg-[#fafaff] dark:hover:bg-zinc-800"
+                                            : isKeyFocused
+                                                ? "bg-[#fafaff] dark:bg-zinc-800 border-2 border-indigo-300 dark:border-indigo-700 shadow-sm"
+                                                : "bg-white dark:bg-zinc-800/50 border border-[#e5e7eb] dark:border-zinc-700/60 hover:border-[#c7d2fe] dark:hover:border-indigo-800 hover:shadow-sm hover:bg-[#fafaff] dark:hover:bg-zinc-800"
                                     )}
                                 >
                                     <div className="flex items-start justify-between gap-2 mb-1.5">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { HardDrive } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -75,7 +76,7 @@ export default function AuthPage() {
             <div className="relative z-10 w-full max-w-sm">
                 {/* Logo + wordmark */}
                 <div className="flex items-center gap-3 mb-8 justify-center">
-                    <img src="/logo.svg" alt="Locus" className="w-10 h-10 rounded-xl shadow-sm" />
+                    <Image src="/logo.svg" alt="Locus" width={40} height={40} className="rounded-xl shadow-sm" />
                     <div>
                         <p className="font-bold text-lg tracking-tight leading-none">Locus Notes</p>
                         <p className="text-zinc-500 text-xs mt-0.5">Your second brain in the cloud</p>

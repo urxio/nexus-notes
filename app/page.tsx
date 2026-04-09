@@ -2,6 +2,7 @@
 
 import { ArrowRight, BrainCircuit, Network, Zap, FileText, Hash, User } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const DISCORD_URL = 'https://discord.gg/8kCf3Eht'
 
@@ -36,7 +37,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-6 md:px-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="Locus Logo" className="w-8 h-8 rounded-lg shadow-sm" />
+            <Image src="/logo.svg" alt="Locus Logo" width={32} height={32} className="rounded-lg shadow-sm" />
             <span className="font-semibold text-lg tracking-tight">Locus Notes</span>
           </div>
           <Link
@@ -245,7 +246,7 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-6 md:px-12 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Logo" className="w-5 h-5 rounded grayscale opacity-50" />
+            <Image src="/logo.svg" alt="Logo" width={20} height={20} className="rounded grayscale opacity-50" />
             <span className="text-zinc-500 text-sm">Locus Notes &copy; {new Date().getFullYear()}</span>
             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold text-amber-400/70 border border-amber-500/20 ml-1"
               style={{ background: 'rgba(245,158,11,0.06)' }}>
