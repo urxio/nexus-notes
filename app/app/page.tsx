@@ -29,6 +29,7 @@ import {
   dbLoadObjectTypes, dbSyncObjectTypes,
   dbLoadDeletedObjectTypes, dbSyncDeletedObjectTypes,
   dbLoadInbox, dbSyncInbox,
+  noteFromDb,
 } from "@/lib/storage"
 import { getSupabaseClient } from "@/lib/supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -40,6 +41,7 @@ import { ObjectBoardPanel } from "@/components/object-board-panel"
 import { NoteEditor } from "@/components/note-editor"
 import { InboxPanel } from "@/components/inbox-panel"
 import { TerminalShell } from "@/components/terminal-shell"
+import { CommandPalette } from "@/components/command-palette"
 import { useIsMobile } from "@/components/ui/use-mobile"
 
 
@@ -63,7 +65,7 @@ const DARK_BG =
 const TERMINAL_BG = '#0e0e0e'
 
 export default function NotesPage() {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const router = useRouter()
 
   // ─── Auth / Supabase ────────────────────────────────────────────────────────
@@ -114,6 +116,7 @@ export default function NotesPage() {
   const isMobile = useIsMobile()
   const [mobileView, setMobileView] = useState<'nav' | 'list' | 'editor' | 'graph'>('list')
   const [mobileSearchFocus, setMobileSearchFocus] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   // ─── Mobile: auto-switch to editor when note selected ──────────────────────
   useEffect(() => {
@@ -225,6 +228,67 @@ export default function NotesPage() {
     bootstrap()
     return () => { isMounted = false }
   }, [])
+
+  // ─── Cmd+K → open command palette ────────────────────────────────────────
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen(prev => !prev)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // ─── Supabase Realtime — live note sync across tabs / devices ─────────────
+  // Subscribes once the user is identified. On any remote INSERT/UPDATE,
+  // applies the change only if the incoming updated_at is strictly newer than
+  // the local copy (last-write-wins by timestamp). DELETE removes the note.
+  useEffect(() => {
+    if (!user) return
+    const userId = user.id
+    const sb = supabase.current
+
+    const channel = sb
+      .channel(`locus-notes-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notes' },
+        (payload) => {
+          // Ignore events for other users (belt-and-suspenders; RLS filters on the DB side)
+          if (payload.eventType !== 'DELETE') {
+            const raw = payload.new as Record<string, unknown>
+            if (raw.user_id !== userId) return
+          }
+
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id?: string }).id
+            if (deletedId) setNotes(prev => prev.filter(n => n.id !== deletedId))
+            return
+          }
+
+          // INSERT or UPDATE — merge only if remote is strictly newer
+          const incoming = noteFromDb(payload.new as Parameters<typeof noteFromDb>[0])
+          setNotes(prev => {
+            const existing = prev.find(n => n.id === incoming.id)
+            if (!existing) {
+              // New note from another device/tab
+              return [incoming, ...prev]
+            }
+            if (incoming.updatedAt <= existing.updatedAt) {
+              // Local is same or newer — ignore remote (avoids clobbering in-flight edits)
+              return prev
+            }
+            // Remote is newer — apply it
+            return prev.map(n => n.id === incoming.id ? incoming : n)
+          })
+        }
+      )
+      .subscribe()
+
+    return () => { sb.removeChannel(channel) }
+  }, [user])
 
   // Graph panel resize via drag handle
   useEffect(() => {
@@ -976,6 +1040,25 @@ export default function NotesPage() {
           deleteTag={deleteTag}
           handleSignOut={handleSignOut}
         />
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          notes={notes}
+          folders={folders}
+          onNavigateTo={navigateTo}
+          onCreateNote={() => { createNote(); setCommandPaletteOpen(false) }}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
+          graphOpen={graphOpen}
+          onToggleGraph={() => setGraphOpen(v => !v)}
+          currentTheme={resolvedTheme}
+          onSetTheme={setTheme}
+          onSignOut={handleSignOut}
+          trashView={trashView}
+          onToggleTrash={() => setTrashView(v => !v)}
+          inboxView={inboxView}
+          onToggleInbox={() => setInboxView(v => !v)}
+        />
         <AlertDialog open={!!deleteTypePrompt} onOpenChange={(o: boolean) => { if (!o) setDeleteTypePrompt(null) }}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -1452,6 +1535,27 @@ export default function NotesPage() {
           </>
         )}
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        notes={notes}
+        folders={folders}
+        onNavigateTo={navigateTo}
+        onCreateNote={() => { createNote(); setCommandPaletteOpen(false) }}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(v => !v)}
+        graphOpen={graphOpen}
+        onToggleGraph={() => setGraphOpen(v => !v)}
+        currentTheme={resolvedTheme}
+        onSetTheme={setTheme}
+        onSignOut={handleSignOut}
+        trashView={trashView}
+        onToggleTrash={() => setTrashView(v => !v)}
+        inboxView={inboxView}
+        onToggleInbox={() => setInboxView(v => !v)}
+      />
 
       {/* Delete Object Type Dialog */}
       <AlertDialog open={!!deleteTypePrompt} onOpenChange={(o: boolean) => { if (!o) setDeleteTypePrompt(null) }}>
