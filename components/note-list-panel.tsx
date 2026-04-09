@@ -94,7 +94,7 @@ function TerminalGhostPreview({ note, anchor, formatDate }: {
             <div style={{ padding: '7px 12px', borderBottom: '1px solid rgba(78,205,196,0.08)', background: '#091210', color: '#2e4a3e' }}>
                 <span style={{ color: '#4ecdc4' }}>$ </span>
                 <span style={{ color: '#8fbcaa' }}>cat</span>
-                <span style={{ color: '#4a6b5e' }}> "{filename}"</span>
+                <span style={{ color: '#4a6b5e' }}> &quot;{filename}&quot;</span>
             </div>
 
             {/* Line-numbered content */}

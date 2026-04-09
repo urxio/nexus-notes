@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react"
 import { useTheme } from "next-themes"
-import { Plus, Search, Trash2, X, ChevronRight, BookOpen, PanelLeftOpen, Hash } from "lucide-react"
+import { Plus, Trash2, X, ChevronRight, BookOpen, PanelLeftOpen, Hash } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
@@ -679,7 +679,7 @@ export function NoteEditor({ note, allTags, onChange, onDelete, people, onCreate
                 return r ? { node: r.startContainer, offset: r.startOffset } : null
             }
             // Firefox
-            const pos = (document as any).caretPositionFromPoint?.(x, y)
+            const pos = (document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null }).caretPositionFromPoint?.(x, y)
             return pos ? { node: pos.offsetNode, offset: pos.offset } : null
         }
 

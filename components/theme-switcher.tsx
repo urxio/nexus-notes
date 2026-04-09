@@ -49,9 +49,6 @@ export function ThemeSwitcher({ side = "up" }: { side?: "up" | "right" }) {
     return <div className="h-7 w-7 rounded-lg bg-muted animate-pulse" />
   }
 
-  const current = THEMES.find(t => t.key === theme) ?? THEMES[1]
-  const CurrentIcon = current.Icon
-
   return (
     <div className="relative" ref={ref}>
       {/* Trigger button */}

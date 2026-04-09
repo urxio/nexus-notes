@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import {
     AlignLeft, Hash, Calendar, ChevronDown, Layers, CheckSquare,
@@ -435,6 +435,7 @@ function PropValue({ prop, people, onUpdate }: {
 }) {
     const [open, setOpen] = useState(false)
     const wrapRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLButtonElement>(null)
     useClickOutside(wrapRef, () => setOpen(false), open)
 
     // ── Checkbox ──────────────────────────────────────────────────────────────
@@ -457,7 +458,6 @@ function PropValue({ prop, people, onUpdate }: {
         const display = raw
             ? new Date(raw + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : ''
-        const triggerRef = useRef<HTMLButtonElement>(null)
         return (
             <>
                 <button

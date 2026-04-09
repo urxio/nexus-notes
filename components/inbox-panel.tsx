@@ -1,5 +1,5 @@
 import React from "react"
-import { Mail, CheckCheck, Trash2, Inbox } from "lucide-react"
+import { CheckCheck, Trash2, Inbox } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { InboxItem } from "@/lib/types"

@@ -18,7 +18,6 @@ interface BlockItemProps {
     onInsert: (afterId: string, type?: BlockType, content?: string) => void
     onDelete: (id: string) => void
     onMergePrev: (id: string, content: string) => void
-    onDuplicate?: (id: string) => void
     onFocus: (id: string) => void
     onSelect: (id: string, evt: React.MouseEvent) => void
     onDragSelectStart: (id: string, idx: number) => void
@@ -38,7 +37,7 @@ interface BlockItemProps {
     notes?: Note[]
 }
 
-export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onDuplicate, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson, onFocusPrev, onFocusNext, onReorderDragStart, isBeingDragged, showDropIndicatorAbove, onNavigateTo, objectTypes, deletedObjectTypes, onCreateObjectType, notes = [] }: BlockItemProps) {
+export function BlockItem({ block, index, listIndex, numBlocks, isFocused, isSelected, onUpdate, onInsert, onDelete, onMergePrev, onFocus, onSelect, onDragSelectStart, onMouseEnterBlock, onPasteLines, people, onCreatePerson, onFocusPrev, onFocusNext, onReorderDragStart, isBeingDragged, showDropIndicatorAbove, onNavigateTo, objectTypes, deletedObjectTypes, onCreateObjectType, notes = [] }: BlockItemProps) {
     const ref = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     // Body contenteditable for toggle blocks (mounted only when block.open === true)

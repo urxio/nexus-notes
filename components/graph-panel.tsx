@@ -409,14 +409,6 @@ export function GraphPanel({ notes, people, activeNoteId, onSelectNote, isExpand
 
     const hoveredNode = visibleNodes.find(n => n.id === hovered)
 
-    // Count connections for the empty-state message
-    const activeHasConnections = localMode
-        ? (allEdges.some(e => {
-            const an = allNodes.find(n => n.noteId === activeNoteId)
-            return an && (e.source === an.id || e.target === an.id)
-        }))
-        : allNodes.length > 0
-
     return (
         <div
             ref={containerRef}

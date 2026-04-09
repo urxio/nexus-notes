@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, RotateCcw, Mail, LogOut } from "lucide-react"
+import { Plus, PanelLeftClose, FileText, FolderPlus, Pencil, Trash2, X, Hash, Network, ChevronRight, Mail, LogOut } from "lucide-react"
 
 const DISCORD_URL = 'https://discord.gg/8kCf3Eht'
 
@@ -84,7 +84,7 @@ export function NavRail({ folders, selectedFolderId, onSelectFolder, people, obj
     const toggleTypeExpanded = (typeId: string) => {
         setExpandedTypes(prev => {
             const next = new Set(prev)
-            next.has(typeId) ? next.delete(typeId) : next.add(typeId)
+            if (next.has(typeId)) { next.delete(typeId) } else { next.add(typeId) }
             try {
                 localStorage.setItem('locus-expanded-types-v1', JSON.stringify([...next]))
             } catch {}

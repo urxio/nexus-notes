@@ -1,37 +1,28 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { createPortal } from "react-dom"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
-  Plus, Search, Hash, Network, FileText, Trash2, X,
-  AlignLeft, Heading1, Heading2, Heading3, List, ListOrdered,
-  Code2, Quote, CheckSquare, Minus, PanelLeftClose, PanelLeftOpen,
-  ChevronRight, ChevronLeft, BookOpen, Calendar, GripVertical, Menu,
-  User, Bold, Italic, Strikethrough, Palette, Underline,
-  Maximize2, Minimize2, FolderPlus, Pencil, Folder as FolderIcon,
-  Sparkles, Rocket, Zap, Atom, Orbit, Terminal, Cpu, Database, Server, BrainCircuit, Bot, Command, Hexagon, Radio, Satellite
+  Plus, FileText, X,
+  PanelLeftOpen,
+  ChevronLeft, BookOpen, GripVertical, Menu,
 } from "lucide-react"
-import { ThemeSwitcher } from "@/components/theme-switcher"
 import { useTheme } from "next-themes"
 import { useToast } from "@/components/ui/use-toast"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import { BlockType, Block, Note, Folder, TreeItem, Person, ObjectType, GNode, GEdge, InboxItem, NoteProperty, PropertyType } from "@/lib/types"
-import { NOTE_COLORS, NOTE_ICON_KEYS, BLOCK_PLACEHOLDERS, SLASH_MENU_ITEMS, BUILTIN_OBJECT_TYPES, PERSON_EMOJIS } from "@/lib/constants"
+import { Note, Folder, Person, ObjectType, InboxItem, NoteProperty, PropertyType } from "@/lib/types"
+import { BUILTIN_OBJECT_TYPES, PERSON_EMOJIS } from "@/lib/constants"
 import {
   loadFolders, saveFolders, loadObjectTypes, saveObjectTypes,
   loadDeletedObjectTypes, saveDeletedObjectTypes, loadPeople, savePeople,
-  mkPerson, loadNotes, saveNotes, mkNote, mkBlock, cloneBlock,
-  normalizeBlocks, buildTree, defaultPropertiesForType, loadInbox, saveInbox,
+  mkPerson, loadNotes, saveNotes, mkNote,
+  normalizeBlocks, defaultPropertiesForType, loadInbox, saveInbox,
   dbLoadNotes, dbUpsertNote, dbDeleteNote,
   dbLoadPeople, dbSyncPeople,
   dbLoadFolders, dbSyncFolders,
@@ -42,36 +33,15 @@ import {
 import { getSupabaseClient } from "@/lib/supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import { migrateIfNeeded } from "@/lib/migrate"
-import { buildGraph, tickSim } from "@/lib/graph"
-import { NoteIcon } from "@/components/note-icon"
-import { BLOCK_ICONS } from "@/components/block-icons"
-
 import { GraphPanel } from "@/components/graph-panel"
-import { DateBlock } from "@/components/date-block"
-import { injectMentionsIntoHtml } from "@/lib/mentions"
-import { FormatToolbar } from "@/components/format-toolbar"
-import { BlockItem } from "@/components/block-item"
 import { NavRail } from "@/components/nav-rail"
 import { NoteListPanel } from "@/components/note-list-panel"
 import { ObjectBoardPanel } from "@/components/object-board-panel"
 import { NoteEditor } from "@/components/note-editor"
-import { Sidebar } from "@/components/sidebar"
 import { InboxPanel } from "@/components/inbox-panel"
 import { TerminalShell } from "@/components/terminal-shell"
 import { useIsMobile } from "@/components/ui/use-mobile"
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(ts: number): string {
-  const d = new Date(ts)
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined })
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -172,7 +142,7 @@ export default function NotesPage() {
 
       // 1. Identify the current user
       const { data: { user: currentUser } } = await sb.auth.getUser().catch(
-        () => ({ data: { user: null } }) as any
+        (): { data: { user: null } } => ({ data: { user: null } })
       )
       if (!isMounted) return
 
@@ -641,7 +611,7 @@ export default function NotesPage() {
     }
     const person: Person = { ...mkPerson(name, noteEmoji), noteId: personNote.id, typeId }
       // Store personId on the note so we can identify it as a person page
-      ; (personNote as any).personId = person.id
+      ; personNote.personId = person.id
     setNotes(prev => [personNote, ...prev])
     setPeople(prev => [...prev, person])
     return person

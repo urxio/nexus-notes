@@ -1,6 +1,6 @@
 import { Folder, ObjectType, Person, Note, Block, BlockType, TreeItem, NoteProperty, PropertyType, InboxItem } from './types'
-import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { SEED_NOTES, SEED_PEOPLE, PERSON_EMOJIS, NOTE_ICON_KEYS, NOTE_COLORS } from './constants'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { SEED_NOTES, SEED_PEOPLE, NOTE_COLORS } from './constants'
 
 // ─── Supabase row shapes (snake_case, as returned by Postgres) ─────────────────
 

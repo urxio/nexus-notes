@@ -26,7 +26,6 @@ interface SidebarProps {
     objectTypes: ObjectType[]
     deletedObjectTypes: string[]
     onPromptDeleteObjectType: (id: string) => void
-    onCreateObjectType: (name: string, emoji: string) => void
     folders: Folder[]
     expandedFolders: Set<string>
     onToggleFolder: (id: string) => void
@@ -38,7 +37,7 @@ interface SidebarProps {
     onDeleteTag: (tag: string) => void
 }
 
-export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, onCreateObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote, onDeleteNote, onDeleteTag }: SidebarProps) {
+export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect, onCreate, activeTag, onTagFilter, people, onDeletePerson, objectTypes, deletedObjectTypes, onPromptDeleteObjectType, folders, expandedFolders, onToggleFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveNote, onDeleteNote, onDeleteTag }: SidebarProps) {
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'note' | 'person' | 'folder' | 'objectType'; id: string } | null>(null)
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
     const [editingName, setEditingName] = useState('')
@@ -56,7 +55,6 @@ export function Sidebar({ notes, allNotes, activeId, search, onSearch, onSelect,
         [folders, allNotes, useTreeView]
     )
     const allTypes = [...BUILTIN_OBJECT_TYPES, ...objectTypes].filter(t => !deletedObjectTypes.includes(t.id))
-    const visibleTypes = allTypes.filter(t => t.isBuiltin || people.some(p => (p.typeId ?? 'person') === t.id))
 
     function renderNoteItem(note: Note, depth: number) {
         return (

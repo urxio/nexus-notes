@@ -78,15 +78,14 @@ export interface TerminalShellProps {
 export function TerminalShell(props: TerminalShellProps) {
   const {
     notes, liveNotes, panelNotes, activeNote, people, folders,
-    customObjectTypes, deletedObjectTypes, allTags, inboxItems, trashCount,
+    customObjectTypes, deletedObjectTypes, allTags, inboxItems,
     activeId, search, activeTag, selectedFolderId, trashView,
     graphOpen, navStack, splitNoteId, graphWidth,
-    setActiveId, setSearch, setActiveTag, setSelectedFolderId,
-    setTrashView, setGraphOpen, setNavStack, setSplitNoteId,
+    setActiveId, setSearch, setGraphOpen, setNavStack, setSplitNoteId,
     setInboxItems,
     createNote, updateNote, deleteNote, restoreNote, permanentlyDeleteNote,
     moveNoteToFolder, createPerson, navigateTo, navigateToBreadcrumb,
-    createObjectType, deleteTag, handleSignOut,
+    createObjectType, handleSignOut,
   } = props
 
   // ── Local UI state ──────────────────────────────────────────────────────
